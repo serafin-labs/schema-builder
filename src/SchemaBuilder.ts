@@ -370,6 +370,44 @@ export class SchemaBuilder<T> {
     }
 
     /**
+     * Rename the given property. The property schema remains unchanged. The new property is required.
+     * 
+     * @param propertyName 
+     * @param newPropertyName 
+     */
+    renameProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<Omit<T, K> & {[P in K2]: T[K]}> {
+        this.schemaObject.properties = this.schemaObject.properties || {};
+        if (propertyName in this.schemaObject.properties) {
+            this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
+            delete this.schemaObject.properties[propertyName]
+            if (this.schemaObject.required && this.schemaObject.required.indexOf(propertyName) !== -1) {
+                this.schemaObject.required.splice(this.schemaObject.required.indexOf(propertyName), 1)
+            }
+            this.schemaObject.required = this.schemaObject.required || [];
+            this.schemaObject.required.push(newPropertyName)
+        }
+        return this as any
+    }
+
+    /**
+     * Rename the given property. The property schema remains unchanged. The new property is optional.
+     * 
+     * @param propertyName 
+     * @param newPropertyName 
+     */
+    renameOptionalProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<Omit<T, K> & {[P in K2]?: T[K]}> {
+        this.schemaObject.properties = this.schemaObject.properties || {};
+        if (propertyName in this.schemaObject.properties) {
+            this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
+            delete this.schemaObject.properties[propertyName]
+            if (this.schemaObject.required && this.schemaObject.required.indexOf(propertyName) !== -1) {
+                this.schemaObject.required.splice(this.schemaObject.required.indexOf(propertyName), 1)
+            }
+        }
+        return this as any
+    }
+
+    /**
      * Filter the schema to contains only the given properties. additionalProperties is set to false.
      * 
      * @param properties 
