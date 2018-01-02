@@ -29,7 +29,7 @@ describe('Schema Builder', function () {
 
         let userSchema = SchemaBuilder.emptySchema()
             .addString("id", { pattern: "\\w" })
-            .addString("firstname")
+            .addString("firstName")
             .addString("lastName")
             .addEnum("role", ["admin", "user"])
             .addString("email", { format: "email" })
@@ -37,11 +37,12 @@ describe('Schema Builder', function () {
             .addOptionalInteger("age")
             .addOptionalStringArray("friendsIds")
             .addArray("tasks", taskSchema)
+            .flatType()
 
         expect(userSchema).to.exist
         expect(userSchema.validate.bind(userSchema, {
             id: "1",
-            firstname: "John",
+            firstName: "John",
             lastName: "Doe",
             email: "john-doe@test.com",
             role: "admin",
@@ -54,7 +55,7 @@ describe('Schema Builder', function () {
         })).to.not.throw()
         expect(userSchema.validate.bind(userSchema, {
             id: "1_",
-            firstname: "John",
+            firstName: "John",
             lastName: "Doe",
             email: "john-doe-test.com",
             role: "test",
@@ -67,9 +68,9 @@ describe('Schema Builder', function () {
         })).to.throw()
 
         let queryUserSchema = userSchema.clone()
-            .pickProperties(["firstname", "lastName", "age", "email", "tags"])
+            .pickProperties(["firstName", "lastName", "age", "email", "tags"])
             .transformProperties(SchemaBuilder.stringSchema(), ["tags"])
-            .transformPropertiesToArray(["firstname", "lastName", "age", "email"])
+            .transformPropertiesToArray(["firstName", "lastName", "age", "email"])
             .toOptionals()
             .flatType()
         expect(queryUserSchema).to.exist

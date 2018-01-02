@@ -142,7 +142,38 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Create a new schema where all properties are optionals
+     * Make given properties optionals
+     */
+    setOptionalProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Partial<Pick<T, K>> & Omit<T, K>> {
+        let required = []
+        for (let property in this.schemaObject.properties) {
+            if ((properties as string[]).indexOf(property) === -1) {
+                required.push(property)
+            }
+        }
+        if (required.length === 0) {
+            delete this.schemaObject.required
+        } else {
+            this.schemaObject.required = required
+        }
+        return this as any
+    }
+
+    /**
+     * Make given properties required
+     */
+    setRequiredProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Required<Pick<T, K>> & Omit<T, K>> {
+        for (let property of properties) {
+            this.schemaObject.required = this.schemaObject.required || []
+            if (this.schemaObject.required.indexOf(property) === -1) {
+                this.schemaObject.required.push(property)
+            }
+        }
+        return this as any
+    }
+
+    /**
+     * Make all properties optionals
      */
     toOptionals(): SchemaBuilder<Partial<T>> {
         delete this.schemaObject.required
@@ -150,7 +181,7 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Create a new schema where all properties and subproperties are optionals
+     * Make all properties and subproperties optionals
      */
     toDeepOptionals(): SchemaBuilder<DeepPartial<T>> {
         throughJsonSchema(this.schemaObject, s => delete s.required)
@@ -608,6 +639,15 @@ export type Merge<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & Omit<
 export type DeepPartial<T> = {
     [P in keyof T]?: DeepPartial<T[P]>;
 }
+
+/**
+ * Make all properties of T required and non-nullable.
+ *
+ * @see https://github.com/Microsoft/TypeScript/issues/15012
+ */
+export type Required<T> = {
+    [P in {[P in keyof T]: keyof T; }[keyof T]]: T[P];
+};
 
 export type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "example" | "deprecated" | "readOnly" | "writeOnly";
 
