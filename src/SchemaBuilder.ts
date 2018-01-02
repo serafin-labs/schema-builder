@@ -6,23 +6,7 @@ import * as VError from 'verror'
 import { JSONSchema, metaSchema } from "@serafin/open-api"
 
 /**
- * Type modifier that makes all properties optionals deeply
- */
-export type DeepPartial<T> = {
-    [P in keyof T]?: DeepPartial<T[P]>;
-}
-
-export type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "example" | "deprecated" | "readOnly" | "writeOnly";
-
-export type JSONSchemaStringProperties = "description" | "default" | "maxLength" | "minLength" | "pattern" | "format" | "example" | "deprecated" | "readOnly" | "writeOnly";
-
-export type JSONSchemaNumberProperties = "description" | "default" | "multipleOf" | "maximum" | "exclusiveMaximum" | "minimum" | "exclusiveMinimum" | "example" | "deprecated" | "readOnly" | "writeOnly";
-
-export type JSONSchemaBooleanProperties = "description" | "default" | "example" | "deprecated" | "readOnly" | "writeOnly";
-
-/**
- * Represents a JSON Schema and the object type it represents.
- * Schema builder can only works with schema containing top level properties (no oneOf, anyOf, allOf, not at root level)
+ * Represents a JSON Schema and its type.
  */
 export class SchemaBuilder<T> {
     /**
@@ -54,8 +38,60 @@ export class SchemaBuilder<T> {
     /**
      * Create an empty schema
      */
-    static emptySchema() {
-        return new SchemaBuilder<{}>({ type: "object" })
+    static emptySchema(schema: Pick<JSONSchema, JSONSchemaObjectProperties> = {}) {
+        (schema as JSONSchema).type = "object";
+        (schema as JSONSchema).additionalProperties = false;
+        return new SchemaBuilder<{}>(schema)
+    }
+
+    /**
+     * Create a simple string schema
+     */
+    static stringSchema(schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}) {
+        (schema as JSONSchema).type = "string"
+        return new SchemaBuilder<string>(schema)
+    }
+
+    /**
+     * Create a simple number schema
+     */
+    static numberSchema(schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}) {
+        (schema as JSONSchema).type = "number"
+        return new SchemaBuilder<number>(schema)
+    }
+
+    /**
+     * Create a simple integer schema
+     */
+    static integerSchema(schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}) {
+        (schema as JSONSchema).type = "integer"
+        return new SchemaBuilder<number>(schema)
+    }
+
+    /**
+     * Create a simple boolean schema
+     */
+    static booleanSchema(schema: Pick<JSONSchema, JSONSchemaProperties> = {}) {
+        (schema as JSONSchema).type = "boolean"
+        return new SchemaBuilder<boolean>(schema)
+    }
+
+    /**
+     * Create a simple enum schema
+     */
+    static enumSchema<K extends keyof any>(values: K[], schema: Pick<JSONSchema, JSONSchemaProperties> = {}) {
+        (schema as JSONSchema).type = "string";
+        (schema as JSONSchema).enum = values;
+        return new SchemaBuilder<K>(schema)
+    }
+
+    /**
+     * Create a simple array schema
+     */
+    static arraySchema<U>(items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
+        (schema as JSONSchema).type = "array";
+        (schema as JSONSchema).items = items.schemaObject;
+        return new SchemaBuilder<U[]>(schema)
     }
 
     /**
@@ -77,8 +113,31 @@ export class SchemaBuilder<T> {
      * @param schemaBuilder2 
      */
     static allOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
-        return new SchemaBuilder<T1 | T2>({
+        return new SchemaBuilder<T1 & T2>({
             allOf: [schemaBuilder1.schemaObject, schemaBuilder2.schemaObject]
+        })
+    }
+
+    /**
+     * Return a schema builder which represents schemaBuilder1 or schemaBuilder2 or schemaBuilder1 and schemaBuilder2. "anyOf" as described by JSON Schema specifications.
+     * 
+     * @param schemaBuilder1 
+     * @param schemaBuilder2 
+     */
+    static anyOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
+        return new SchemaBuilder<T1 | T2 | (T1 & T2)>({
+            anyOf: [schemaBuilder1.schemaObject, schemaBuilder2.schemaObject]
+        })
+    }
+
+    /**
+     * Return a schema builder which represents the negation of the given schema. The only type we can assume is "any". "not" as described by JSON Schema specifications.
+     * 
+     * @param schemaBuilder
+     */
+    static not(schemaBuilder: SchemaBuilder<any>) {
+        return new SchemaBuilder<any>({
+            not: schemaBuilder
         })
     }
 
@@ -86,18 +145,16 @@ export class SchemaBuilder<T> {
      * Create a new schema where all properties are optionals
      */
     toOptionals(): SchemaBuilder<Partial<T>> {
-        let schemaBuilder = this.clone();
-        delete schemaBuilder.schemaObject.required
-        return schemaBuilder as any
+        delete this.schemaObject.required
+        return this as any
     }
 
     /**
      * Create a new schema where all properties and subproperties are optionals
      */
     toDeepOptionals(): SchemaBuilder<DeepPartial<T>> {
-        let schemaBuilder = this.clone();
-        throughJsonSchema(schemaBuilder.schemaObject, s => delete s.required)
-        return schemaBuilder as any
+        throughJsonSchema(this.schemaObject, s => delete s.required)
+        return this as any
     }
 
     /**
@@ -146,8 +203,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addString<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}) {
-        (schema as JSONSchema).type = "string";
-        return this.addProperty(propertyName, new SchemaBuilder<string>(schema))
+        return this.addProperty(propertyName, SchemaBuilder.stringSchema(schema))
     }
 
     /**
@@ -157,8 +213,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addOptionalString<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}) {
-        (schema as JSONSchema).type = "string";
-        return this.addOptionalProperty(propertyName, new SchemaBuilder<string>(schema))
+        return this.addOptionalProperty(propertyName, SchemaBuilder.stringSchema(schema))
     }
 
     /**
@@ -168,9 +223,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addEnum<K extends keyof any, K2 extends keyof any>(propertyName: K, values: K2[], schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}) {
-        (schema as JSONSchema).type = "string";
-        (schema as JSONSchema).enum = values;
-        return this.addProperty(propertyName, new SchemaBuilder<K2>(schema))
+        return this.addProperty(propertyName, SchemaBuilder.enumSchema(values, schema))
     }
 
     /**
@@ -180,9 +233,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addOptionalEnum<K extends keyof any, K2 extends keyof any>(propertyName: K, values: K2[], schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}) {
-        (schema as JSONSchema).type = "string";
-        (schema as JSONSchema).enum = values;
-        return this.addOptionalProperty(propertyName, new SchemaBuilder<K2>(schema))
+        return this.addOptionalProperty(propertyName, SchemaBuilder.enumSchema(values, schema))
     }
 
     /**
@@ -192,8 +243,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addNumber<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}) {
-        (schema as JSONSchema).type = "number";
-        return this.addProperty(propertyName, new SchemaBuilder<number>(schema))
+        return this.addProperty(propertyName, SchemaBuilder.numberSchema(schema))
     }
 
     /**
@@ -203,8 +253,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addOptionalNumber<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}) {
-        (schema as JSONSchema).type = "number";
-        return this.addOptionalProperty(propertyName, new SchemaBuilder<number>(schema))
+        return this.addOptionalProperty(propertyName, SchemaBuilder.numberSchema(schema))
     }
 
     /**
@@ -214,8 +263,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addInteger<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}) {
-        (schema as JSONSchema).type = "integer";
-        return this.addProperty(propertyName, new SchemaBuilder<number>(schema))
+        return this.addProperty(propertyName, SchemaBuilder.integerSchema(schema))
     }
 
     /**
@@ -225,8 +273,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addOptionalInteger<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}) {
-        (schema as JSONSchema).type = "integer";
-        return this.addOptionalProperty(propertyName, new SchemaBuilder<number>(schema))
+        return this.addOptionalProperty(propertyName, SchemaBuilder.integerSchema(schema))
     }
 
     /**
@@ -235,9 +282,8 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param schema 
      */
-    addBoolean<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaBooleanProperties> = {}) {
-        (schema as JSONSchema).type = "boolean";
-        return this.addProperty(propertyName, new SchemaBuilder<boolean>(schema))
+    addBoolean<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaProperties> = {}) {
+        return this.addProperty(propertyName, SchemaBuilder.booleanSchema(schema))
     }
 
     /**
@@ -246,9 +292,8 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param schema 
      */
-    addOptionalBoolean<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaBooleanProperties> = {}) {
-        (schema as JSONSchema).type = "boolean";
-        return this.addOptionalProperty(propertyName, new SchemaBuilder<boolean>(schema))
+    addOptionalBoolean<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaProperties> = {}) {
+        return this.addOptionalProperty(propertyName, SchemaBuilder.booleanSchema(schema))
     }
 
     /**
@@ -258,11 +303,8 @@ export class SchemaBuilder<T> {
      * @param items 
      * @param schema 
      */
-    addArray<U, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema?: Pick<JSONSchema, JSONSchemaArrayProperties>): SchemaBuilder<T & {[P in K]: U[]}> {
-        let propertySchema = (schema || {}) as JSONSchema;
-        propertySchema.type = "array";
-        propertySchema.items = items.schemaObject;
-        return this.addProperty(propertyName, new SchemaBuilder<U[]>(propertySchema))
+    addArray<U, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
+        return this.addProperty(propertyName, SchemaBuilder.arraySchema(items, schema))
     }
 
     /**
@@ -272,11 +314,8 @@ export class SchemaBuilder<T> {
      * @param items 
      * @param schema 
      */
-    addOptionalArray<U, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema?: Pick<JSONSchema, JSONSchemaArrayProperties>) {
-        let propertySchema = (schema || {}) as JSONSchema;
-        propertySchema.type = "array";
-        propertySchema.items = items.schemaObject;
-        return this.addOptionalProperty(propertyName, new SchemaBuilder<U[]>(propertySchema))
+    addOptionalArray<U, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
+        return this.addOptionalProperty(propertyName, SchemaBuilder.arraySchema(items, schema))
     }
 
     /**
@@ -285,8 +324,8 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param schema 
      */
-    addStringArray<K extends keyof any>(propertyName: K, schema?: Pick<JSONSchema, JSONSchemaArrayProperties>) {
-        return this.addArray(propertyName, new SchemaBuilder<string>({ type: "string" }), schema)
+    addStringArray<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
+        return this.addArray(propertyName, SchemaBuilder.stringSchema(), schema)
     }
 
     /**
@@ -295,12 +334,12 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param schema 
      */
-    addOptionalStringArray<K extends keyof any>(propertyName: K, schema?: Pick<JSONSchema, JSONSchemaArrayProperties>) {
-        return this.addOptionalArray(propertyName, new SchemaBuilder<string>({ type: "string" }), schema)
+    addOptionalStringArray<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
+        return this.addOptionalArray(propertyName, SchemaBuilder.stringSchema(), schema)
     }
 
     /**
-     * Create a new schema that only contains the given properties. additionalProperties is set to false
+     * Filter the schema to contains only the given properties. additionalProperties is set to false.
      * 
      * @param properties 
      */
@@ -324,27 +363,38 @@ export class SchemaBuilder<T> {
 
 
     /**
-     * Create a new schema that contains the given properties and keep additionalProperties
+     * Filter the schema to contains only the given properties and keep additionalProperties
      * 
      * @param properties 
      */
     pickPropertiesIncludingAdditonalProperties<K extends keyof T, K2 extends keyof T>(properties: K[]): SchemaBuilder<Pick<T, K> & {[P in K2]: T[P]}> {
         let additionalProperties = this.schemaObject.additionalProperties;
+        if (!additionalProperties) {
+            throw new Error(`Schema Builder Error: 'pickPropertiesIncludingAdditonalProperties' can only be used with a schema that has additionalProperties defined.`);
+        }
         this.pickProperties(properties);
         this.schemaObject.additionalProperties = additionalProperties;
         return this as any
     }
 
     /**
+     * Filter the schema to contains everything except the given properties. additionalProperties is set to false.
+     */
+    omitProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Omit<T, K>> {
+        this.schemaObject.properties = this.schemaObject.properties || {};
+        let p = Object.keys(this.schemaObject.properties).filter(k => (properties as string[]).indexOf(k) === -1);
+        return this.pickProperties(p as any);
+    }
+
+    /**
      * Transform properties to accept an alternative type. additionalProperties is set false.
      * 
      * @param changedProperties properties that will have the alternative type
-     * @param unchangedProperties properties that will remain unchanged.
      * @param schemaBuilder 
      */
-    transformProperties<U, K extends keyof T, K2 extends keyof T>(changedProperties: K[], unchangedProperties: K2[], schemaBuilder: SchemaBuilder<U>): SchemaBuilder<{[P in K2]: T[P]} & {[P in K]: U | T[P]}> {
+    transformProperties<U, K extends keyof T, K2 extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<Omit<T, K> & {[P in K]: (T[P] | U) }> {
         this.schemaObject.properties = this.schemaObject.properties || {}
-        for (let property of changedProperties) {
+        for (let property of propertyNames) {
             let propertySchema = this.schemaObject.properties[property];
             if (!propertySchema) {
                 throw new Error(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
@@ -358,15 +408,14 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Transform properties to make them alternatively an array of the initial type. additionalProperties is set false.
+     * Transform the given properties to make them alternatively an array of the initial type. additionalProperties is set false.
      * 
-     * @param changedProperties properties that will have the alternative type
-     * @param unchangedProperties properties that will remain unchanged.
-     * @param schemaBuilder 
+     * @param changedProperties properties that will have the alternative array type
      */
-    transformPropertiesToArray<K extends keyof T, K2 extends keyof T>(changedProperties: K[], unchangedProperties: K2[]): SchemaBuilder<{[P in K2]: T[P]} & {[P in K]: (T[P] | T[P][]) }> {
+    transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<Omit<T, K> & {[P in K]: (T[P] | T[P][]) }> {
         this.schemaObject.properties = this.schemaObject.properties || {}
-        for (let property of changedProperties) {
+        propertyNames = propertyNames || Object.keys(this.schemaObject.properties) as any
+        for (let property of propertyNames) {
             let propertySchema = this.schemaObject.properties[property];
             if (!propertySchema) {
                 throw new Error(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
@@ -385,7 +434,7 @@ export class SchemaBuilder<T> {
      * 
      * @param schema 
      */
-    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<T & T2> {
+    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Merge<T, T2>> {
         for (let propertyKey in schema.schemaObject.properties) {
             if (!(propertyKey in this.schemaObject.properties)) {
                 this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
@@ -395,9 +444,9 @@ export class SchemaBuilder<T> {
                 }
             } else {
                 this.schemaObject.properties[propertyKey] = {
-                    allOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
+                    onOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
                 }
-                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1 && (!this.schemaObject.required || this.schemaObject.required.indexOf(propertyKey) === -1)) {
+                if (!this.schemaObject.required || this.schemaObject.required.indexOf(propertyKey) === -1) {
                     this.schemaObject.required = this.schemaObject.required || [];
                     this.schemaObject.required.push(propertyKey)
                 }
@@ -419,6 +468,13 @@ export class SchemaBuilder<T> {
      */
     get isSchemaSealed() {
         return this.schemaObject.additionalProperties === false
+    }
+
+    /**
+     * true if additionalProperties is set to false and, oneOf, allOf, anyOf and not are not used
+     */
+    get isSimpleObjectSchema() {
+        return this.schemaObject.additionalProperties === false && !("oneOf" in this.schemaObject) && !("allOf" in this.schemaObject) && !("anyOf" in this.schemaObject) && !("not" in this.schemaObject)
     }
 
     /**
@@ -462,7 +518,7 @@ export class SchemaBuilder<T> {
         let valid = this.listValidationFunction(list);
         // check if an error needs to be thrown
         if (!valid) {
-            throw validationError(this.ajv.errorsText(this.listValidationFunction.errors))
+            throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors))
         }
     }
     protected ajvList
@@ -512,3 +568,53 @@ function throughJsonSchema(schema: JSONSchema | JSONSchema[], action: (schema: J
     }
     return schema
 }
+
+
+/**
+ * Remove the second union of string literals from the first.
+ *
+ * @see https://github.com/Microsoft/TypeScript/issues/12215
+ */
+export type Diff<T extends string, U extends string> = (
+    & {[P in T]: P }
+    & {[P in U]: never }
+    & { [x: string]: never }
+)[T];
+
+/**
+ * Drop keys K from T.
+ *
+ * @see https://github.com/Microsoft/TypeScript/issues/12215
+ */
+export type Omit<T, K extends keyof T> = Pick<T, Diff<keyof T, K>>;
+
+/**
+ * T & U but where overlapping properties use thetype from U only.
+ *
+ * @see https://github.com/Microsoft/TypeScript/issues/12215
+ */
+export type Overwrite<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & U;
+
+/**
+ * Like `T & U`, but where there are overlapping properties use the
+ * type from T[P] | U[P].
+ * For overloapping properties, optional info is lost. The property becomes mandatory.
+ */
+export type Merge<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & Omit<U, Diff<keyof U, Diff<keyof U, keyof T>>> & {[P in keyof (T | U)]: (T[P] | U[P]) };
+
+/**
+ * Type modifier that makes all properties optionals deeply
+ */
+export type DeepPartial<T> = {
+    [P in keyof T]?: DeepPartial<T[P]>;
+}
+
+export type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "example" | "deprecated" | "readOnly" | "writeOnly";
+
+export type JSONSchemaStringProperties = "description" | "default" | "maxLength" | "minLength" | "pattern" | "format" | "example" | "deprecated" | "readOnly" | "writeOnly";
+
+export type JSONSchemaNumberProperties = "description" | "default" | "multipleOf" | "maximum" | "exclusiveMaximum" | "minimum" | "exclusiveMinimum" | "example" | "deprecated" | "readOnly" | "writeOnly";
+
+export type JSONSchemaProperties = "description" | "default" | "example" | "deprecated" | "readOnly" | "writeOnly";
+
+export type JSONSchemaObjectProperties = "title" | "description" | "maxProperties" | "minProperties" | "default" | "example" | "deprecated" | "readOnly" | "writeOnly";

@@ -68,8 +68,8 @@ describe('Schema Builder', function () {
 
         let queryUserSchema = userSchema.clone()
             .pickProperties(["firstname", "lastName", "age", "email", "tags"])
-            .transformProperties(["tags"], ["firstname", "lastName", "age", "email"], new SchemaBuilder<string>({ type: "string" }))
-            .transformPropertiesToArray(["firstname", "lastName", "age", "email"], ["tags"])
+            .transformProperties(SchemaBuilder.stringSchema(), ["tags"])
+            .transformPropertiesToArray(["firstname", "lastName", "age", "email"])
             .toOptionals()
             .flatType()
         expect(queryUserSchema).to.exist
