@@ -598,7 +598,7 @@ function validationError(ajvErrorsText) {
     let opt: any = {
         name: "SerafinSchemaValidationError"
     };
-    return new VError(opt, `Invalid parameters: ${validationError}`);
+    return new VError(opt, `Invalid parameters: ${ajvErrorsText}`);
 }
 
 function throughJsonSchema(schema: JSONSchema | JSONSchema[], action: (schema: JSONSchema) => void) {
