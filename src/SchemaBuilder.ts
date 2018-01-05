@@ -426,6 +426,9 @@ export class SchemaBuilder<T> {
         if (this.schemaObject.required) {
             this.schemaObject.required = this.schemaObject.required.filter((r) => (properties as string[]).indexOf(r) !== -1)
         }
+        if (Array.isArray(this.schemaObject.required) && this.schemaObject.required.length === 0) {
+            delete this.schemaObject.required
+        }
         this.schemaObject.additionalProperties = false
         return this as any
     }
