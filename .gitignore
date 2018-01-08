@@ -57,6 +57,9 @@ typings/
 # dotenv environment variables file
 .env
 
-.history
-
-.vscode
+# specific
+/.history
+/.idea
+/.DS_Store
+!/.gitkeep
+docker-compose.my.yml
