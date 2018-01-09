@@ -17,7 +17,6 @@
     },
     "dependencies": {
         "@serafin/open-api": "git+ssh://git@github.com/serafin-labs/open-api.git",
-        "@serafin/gulp-tasks": "git+ssh://git@github.com/serafin-labs/gulp-tasks.git",
         "@types/json-schema": "^6.0.0",
         "@types/lodash": "^4.14.91",
         "@types/node": "^8.5.2",
@@ -27,6 +26,7 @@
         "verror": "^1.10.0"
     },
     "devDependencies": {
+        "@serafin/gulp-tasks": "git+ssh://git@github.com/serafin-labs/gulp-tasks.git",
         "@types/chai": "^4.0.10",
         "@types/mocha": "^2.2.45",
         "chai": "^4.1.2",
