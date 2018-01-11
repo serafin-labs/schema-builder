@@ -18,11 +18,16 @@ export class SchemaBuilder<T> {
 
     /**
      * Initialize a new SchemaBuilder instance.
-     * /!\ schemaObject must not contain external references. If you have external references, use dereferencedSchema method instead.
+     * /!\ schemaObject must not contain references. If you have references, use dereferencedSchema method instead.
      * @param schemaObject 
      */
     constructor(protected schemaObject: JSONSchema) {
         this.schemaObject = schemaObject;
+        throughJsonSchema(this.schemaObject, s => {
+            if ("$ref" in s) {
+                throw new VError(`Schema Builder Error: $ref can't be used to initialize a SchemaBuilder. Use 'SchemaBuilder.dereferencedSchema' instead.`)
+            }
+        })
     }
 
     /**
@@ -36,7 +41,7 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Create an empty schema
+     * Create an empty object schema
      */
     static emptySchema(schema: Pick<JSONSchema, JSONSchemaObjectProperties> = {}) {
         (schema as JSONSchema).type = "object";
@@ -137,16 +142,16 @@ export class SchemaBuilder<T> {
      */
     static not(schemaBuilder: SchemaBuilder<any>) {
         return new SchemaBuilder<any>({
-            not: schemaBuilder
+            not: schemaBuilder.schemaObject
         })
     }
 
     /**
      * Make given properties optionals
      */
-    setOptionalProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Partial<Pick<T, K>> & Omit<T, K>> {
+    setOptionalProperties<K extends keyof T>(properties: K[]) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         let required = []
         for (let property in this.schemaObject.properties) {
@@ -159,15 +164,17 @@ export class SchemaBuilder<T> {
         } else {
             this.schemaObject.required = required
         }
-        return this as any
+        type newT = Partial<Pick<T, K>> & Omit<T, K>;
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
      * Make given properties required
      */
-    setRequiredProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Required<Pick<T, K>> & Omit<T, K>> {
+    setRequiredProperties<K extends keyof T>(properties: K[]) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'setRequiredProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'setRequiredProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         for (let property of properties) {
             this.schemaObject.required = this.schemaObject.required || []
@@ -175,7 +182,9 @@ export class SchemaBuilder<T> {
                 this.schemaObject.required.push(property)
             }
         }
-        return this as any
+        type newT = Required<Pick<T, K>> & Omit<T, K>;
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -200,15 +209,20 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param schemaBuilder 
      */
-    addProperty<U, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>): SchemaBuilder<T & {[P in K]: U}> {
+    addProperty<U, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>) {
         if (!this.isObjectSchema) {
-            throw new Error(`Schema Builder Error: you can only add properties to an object schema`);
+            throw new VError(`Schema Builder Error: you can only add properties to an object schema`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {}
+        if (propertyName in this.schemaObject.properties) {
+            throw new VError(`Schema Builder Error: '${propertyName}' already exists in ${this.schemaObject.title || 'this'} schema`);
+        }
         this.schemaObject.properties[propertyName] = schemaBuilder.schemaObject;
         this.schemaObject.required = this.schemaObject.required || [];
         this.schemaObject.required.push(propertyName)
-        return this as any
+        type newT = T & {[P in K]: U};
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -217,13 +231,18 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param schemaBuilder 
      */
-    addOptionalProperty<U, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>): SchemaBuilder<T & {[P in K]?: U}> {
+    addOptionalProperty<U, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>) {
         if (!this.isObjectSchema) {
-            throw new Error(`Schema Builder Error: you can only add properties to an object schema`);
+            throw new VError(`Schema Builder Error: you can only add properties to an object schema`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {}
+        if (propertyName in this.schemaObject.properties) {
+            throw new VError(`Schema Builder Error: '${propertyName}' already exists in ${this.schemaObject.title || 'this'} schema`);
+        }
         this.schemaObject.properties[propertyName] = schemaBuilder.schemaObject;
-        return this as any
+        type newT = T & {[P in K]?: U};
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -234,10 +253,30 @@ export class SchemaBuilder<T> {
      */
     addAdditionalProperties<U = any>(schemaBuilder?: SchemaBuilder<U>): SchemaBuilder<T & { [P: string]: U }> {
         if (this.schemaObject.additionalProperties) {
-            throw new Error(`Schema Builder Error: additionalProperties is already set in ${this.schemaObject.title || 'this'} schema.`)
+            throw new VError(`Schema Builder Error: additionalProperties is already set in ${this.schemaObject.title || 'this'} schema.`)
         }
         this.schemaObject.additionalProperties = schemaBuilder ? schemaBuilder.schemaObject : true
         return this as any
+    }
+
+    /**
+     * Add an object to the schema properties
+     * 
+     * @param propertyName 
+     * @param schema 
+     */
+    addObject<U extends {}, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>) {
+        return this.addProperty(propertyName, schemaBuilder as SchemaBuilder<{[P in keyof U]: U[P]}>)
+    }
+
+    /**
+     * Add an optional object to the schema properties
+     * 
+     * @param propertyName 
+     * @param schema 
+     */
+    addOptionalObject<U extends {}, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>) {
+        return this.addOptionalProperty(propertyName, schemaBuilder as SchemaBuilder<{[P in keyof U]: U[P]}>)
     }
 
     /**
@@ -341,25 +380,25 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Add an array of the given schema builder to the schema properties
+     * Add an array of objects to the schema properties
      * 
      * @param propertyName 
      * @param items 
      * @param schema 
      */
-    addArray<U, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
-        return this.addProperty(propertyName, SchemaBuilder.arraySchema(items, schema))
+    addArray<U extends {}, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
+        return this.addProperty(propertyName, SchemaBuilder.arraySchema(items as SchemaBuilder<{[P in keyof U]: U[P]}>, schema))
     }
 
     /**
-     * Add an optional array of the given schema builder to the schema properties
+     * Add an optional array of objects to the schema properties
      * 
      * @param propertyName 
      * @param items 
      * @param schema 
      */
-    addOptionalArray<U, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
-        return this.addOptionalProperty(propertyName, SchemaBuilder.arraySchema(items, schema))
+    addOptionalArray<U extends {}, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
+        return this.addOptionalProperty(propertyName, SchemaBuilder.arraySchema(items as SchemaBuilder<{[P in keyof U]: U[P]}>, schema))
     }
 
     /**
@@ -369,7 +408,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addStringArray<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
-        return this.addArray(propertyName, SchemaBuilder.stringSchema(), schema)
+        return this.addProperty(propertyName, SchemaBuilder.arraySchema(SchemaBuilder.stringSchema(), schema))
     }
 
     /**
@@ -379,7 +418,7 @@ export class SchemaBuilder<T> {
      * @param schema 
      */
     addOptionalStringArray<K extends keyof any>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}) {
-        return this.addOptionalArray(propertyName, SchemaBuilder.stringSchema(), schema)
+        return this.addOptionalProperty(propertyName, SchemaBuilder.arraySchema(SchemaBuilder.stringSchema(), schema))
     }
 
     /**
@@ -388,11 +427,14 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param newPropertyName 
      */
-    renameProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<Omit<T, K> & {[P in K2]: T[K]}> {
+    renameProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'renameProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'renameProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {};
+        if (newPropertyName in this.schemaObject.properties) {
+            throw new VError(`Schema Builder Error: '${newPropertyName}' already exists in ${this.schemaObject.title || 'this'} schema`);
+        }
         if (propertyName in this.schemaObject.properties) {
             this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
             delete this.schemaObject.properties[propertyName]
@@ -402,7 +444,9 @@ export class SchemaBuilder<T> {
             this.schemaObject.required = this.schemaObject.required || [];
             this.schemaObject.required.push(newPropertyName)
         }
-        return this as any
+        type newT = Omit<T, K> & {[P in K2]: T[K]};
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -411,11 +455,14 @@ export class SchemaBuilder<T> {
      * @param propertyName 
      * @param newPropertyName 
      */
-    renameOptionalProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<Omit<T, K> & {[P in K2]?: T[K]}> {
+    renameOptionalProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'renameOptionalProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'renameOptionalProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {};
+        if (newPropertyName in this.schemaObject.properties) {
+            throw new VError(`Schema Builder Error: '${newPropertyName}' already exists in ${this.schemaObject.title || 'this'} schema`);
+        }
         if (propertyName in this.schemaObject.properties) {
             this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
             delete this.schemaObject.properties[propertyName]
@@ -423,17 +470,19 @@ export class SchemaBuilder<T> {
                 this.schemaObject.required.splice(this.schemaObject.required.indexOf(propertyName), 1)
             }
         }
-        return this as any
+        type newT = Omit<T, K> & {[P in K2]?: T[K]};
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
      * Filter the schema to contains only the given properties. additionalProperties is set to false.
      * 
-     * @param properties 
+     * @param properties name of properties of T to keep in the result
      */
-    pickProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Pick<T, K>> {
+    pickProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{[P in K]: T[P]}> {
         if (!this.isObjectSchema || this.hasSchemasCombinationKeywords) {
-            throw new Error(`Schema Builder Error: 'pickProperties' can only be used with a simple object schema (no oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'pickProperties' can only be used with a simple object schema (no oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {}
         let propertiesMap: any = {}
@@ -441,7 +490,7 @@ export class SchemaBuilder<T> {
             if (property in this.schemaObject.properties) {
                 propertiesMap[property] = this.schemaObject.properties[property];
             } else {
-                throw new Error(`Schema Builder Error: picked property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`);
+                throw new VError(`Schema Builder Error: picked property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`);
             }
         }
         this.schemaObject.properties = propertiesMap;
@@ -451,36 +500,49 @@ export class SchemaBuilder<T> {
         if (Array.isArray(this.schemaObject.required) && this.schemaObject.required.length === 0) {
             delete this.schemaObject.required
         }
-        this.schemaObject.additionalProperties = false
         return this as any
     }
 
 
     /**
-     * Filter the schema to contains only the given properties and keep additionalProperties
+     * Filter the schema to contains only the given properties and keep additionalProperties or part of it
      * 
      * @param properties 
+     * @param withAdditionalProperties null means no additonal properties are kept in the result. [] means additionalProperties is kept or set to true if it was not set to false. ['aProperty'] allows you to capture only specific names that conform to additionalProperties type.
      */
-    pickPropertiesIncludingAdditonalProperties<K extends keyof T, K2 extends keyof T>(properties: K[]): SchemaBuilder<Pick<T, K> & {[P in K2]: T[P]}> {
-        let additionalProperties = this.schemaObject.additionalProperties;
+    pickAdditionalProperties<K extends keyof T, K2 extends keyof T = null>(properties: K[], additionalProperties: K2[] = null) {
+        let additionalProps = this.schemaObject.additionalProperties;
         if (!this.isObjectSchema || !this.hasAditionalProperties || this.hasSchemasCombinationKeywords) {
-            throw new Error(`Schema Builder Error: 'pickPropertiesIncludingAdditonalProperties' can only be used with a simple object schema with additionalProperties (no oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'pickPropertiesIncludingAdditonalProperties' can only be used with a simple object schema with additionalProperties (no oneOf, anyOf, allOf or not)`);
         }
         this.pickProperties(properties);
-        this.schemaObject.additionalProperties = additionalProperties;
-        return this as any
+        if (additionalProperties === null) {
+            this.schemaObject.additionalProperties = false
+        } else if (Array.isArray(additionalProperties) && additionalProperties.length === 0) {
+            this.schemaObject.additionalProperties = additionalProps ? additionalProps : true;
+        } else {
+            for (let additionalProperty of additionalProperties) {
+                this.addProperty(additionalProperty, typeof additionalProps === "boolean" ? new SchemaBuilder({}) : new SchemaBuilder(additionalProps))
+            }
+        }
+        type newT = Pick<T, K> & {[P in K2]: T[P]};
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
      * Filter the schema to contains everything except the given properties.
      */
-    omitProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Omit<T, K>> {
+    omitProperties<K extends keyof T>(properties: K[]) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'omitProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'omitProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {};
         let p = Object.keys(this.schemaObject.properties).filter(k => (properties as string[]).indexOf(k) === -1);
-        return this.pickProperties(p as any);
+        this.pickProperties(p as any);
+        type newT = Omit<T, K>;
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -489,21 +551,23 @@ export class SchemaBuilder<T> {
      * @param changedProperties properties that will have the alternative type
      * @param schemaBuilder 
      */
-    transformProperties<U, K extends keyof T, K2 extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<Omit<T, K> & {[P in K]: (T[P] | U) }> {
+    transformProperties<U, K extends keyof T, K2 extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'transformProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'transformProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {}
         for (let property of propertyNames) {
             let propertySchema = this.schemaObject.properties[property];
             if (!propertySchema) {
-                throw new Error(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
+                throw new VError(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
             }
             this.schemaObject.properties[property] = {
                 oneOf: [propertySchema, schemaBuilder.schemaObject]
             }
         }
-        return this as any
+        type newT = Omit<T, K> & {[P in K]: (T[P] | U) };
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -511,22 +575,24 @@ export class SchemaBuilder<T> {
      * 
      * @param changedProperties properties that will have the alternative array type
      */
-    transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<Omit<T, K> & {[P in K]: (T[P] | T[P][]) }> {
+    transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'transformPropertiesToArray' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'transformPropertiesToArray' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {}
         propertyNames = propertyNames || Object.keys(this.schemaObject.properties) as any
         for (let property of propertyNames) {
             let propertySchema = this.schemaObject.properties[property];
             if (!propertySchema) {
-                throw new Error(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
+                throw new VError(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
             }
             this.schemaObject.properties[property] = {
                 oneOf: [propertySchema, { type: "array", items: propertySchema }]
             }
         }
-        return this as any
+        type newT = Omit<T, K> & {[P in K]: (T[P] | T[P][]) };
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -535,9 +601,9 @@ export class SchemaBuilder<T> {
      * 
      * @param schema 
      */
-    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Merge<T, T2>> {
+    mergeProperties<T2>(schema: SchemaBuilder<T2>) {
         if (!this.isSimpleObjectSchema) {
-            throw new Error(`Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+            throw new VError(`Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         for (let propertyKey in schema.schemaObject.properties) {
             if (!(propertyKey in this.schemaObject.properties)) {
@@ -556,15 +622,9 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return this as any
-    }
-
-    /**
-     * Flatten the generic type associated with the schema
-     * This method doesn't do anything. It's just here for readability in case the interface becomes messy.
-     */
-    flatType(): SchemaBuilder<{[P in keyof T]: T[P]}> {
-        return this as any
+        type newT = Merge<T, T2>;
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -647,6 +707,14 @@ export class SchemaBuilder<T> {
     }
     protected ajvList
     protected listValidationFunction;
+
+    /**
+     * This property makes the access to the underlying T type easy.
+     * You can do things like type MyModel = typeof myModelSchemaBuilder.__T
+     * Or use GenericType["__T"] in a generic type definition.
+     * It's not supposed to be set or accessed 
+     */
+    readonly __T?: T
 }
 
 function validationError(ajvErrorsText) {
@@ -741,6 +809,7 @@ export type DeepPartial<T> = {
 export type Required<T> = {
     [P in {[P in keyof T]: keyof T; }[keyof T]]: T[P];
 };
+
 
 export type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "example" | "deprecated" | "readOnly" | "writeOnly";
 

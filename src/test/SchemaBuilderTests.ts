@@ -25,7 +25,7 @@ describe('Schema Builder', function () {
         let taskSchema = SchemaBuilder.emptySchema()
             .addString("name")
             .addNumber("progress")
-            .addBoolean("isCompleted")
+            .addOptionalBoolean("isCompleted")
 
         let userSchema = SchemaBuilder.emptySchema()
             .addString("id", { pattern: "\\w" })
@@ -37,7 +37,6 @@ describe('Schema Builder', function () {
             .addOptionalInteger("age")
             .addOptionalStringArray("friendsIds")
             .addArray("tasks", taskSchema)
-            .flatType()
 
         expect(userSchema).to.exist
         expect(userSchema.validate.bind(userSchema, {
@@ -72,7 +71,6 @@ describe('Schema Builder', function () {
             .transformProperties(SchemaBuilder.stringSchema(), ["tags"])
             .transformPropertiesToArray(["firstName", "lastName", "age", "email"])
             .toOptionals()
-            .flatType()
         expect(queryUserSchema).to.exist
         expect(queryUserSchema.validate.bind(queryUserSchema, {
             tags: "admin",
