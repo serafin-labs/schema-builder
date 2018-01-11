@@ -614,7 +614,7 @@ export class SchemaBuilder<T> {
                 }
             } else {
                 this.schemaObject.properties[propertyKey] = {
-                    onOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
+                    oneOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
                 }
                 if (!this.schemaObject.required || this.schemaObject.required.indexOf(propertyKey) === -1) {
                     this.schemaObject.required = this.schemaObject.required || [];
