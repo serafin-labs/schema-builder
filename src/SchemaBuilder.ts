@@ -597,7 +597,7 @@ export class SchemaBuilder<T> {
 
     /**
      * Merge all properties from the given schema into this one. If a property name is already used, a allOf statement is used.
-     * This method only copy properties. It does not copy additionalProperties, oneOf, allOf or any other fields
+     * This method only copy properties.
      * 
      * @param schema 
      */
@@ -628,10 +628,35 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * true if additionalProperties is set to false
+     * Overwrite all properties from the given schema into this one. If a property name is already used, the new type override the existing one.
+     * This method only copy properties.
+     * 
+     * @param schema 
      */
-    get isSchemaSealed() {
-        return this.schemaObject.additionalProperties === false
+    overwriteProperties<T2>(schema: SchemaBuilder<T2>) {
+        if (!this.isSimpleObjectSchema) {
+            throw new VError(`Schema Builder Error: 'overwriteProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+        }
+        for (let propertyKey in schema.schemaObject.properties) {
+            if (!(propertyKey in this.schemaObject.properties)) {
+                this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
+                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
+                    this.schemaObject.required = this.schemaObject.required || [];
+                    this.schemaObject.required.push(propertyKey)
+                }
+            } else {
+                this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
+                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
+                    this.schemaObject.required = this.schemaObject.required || [];
+                    this.schemaObject.required.push(propertyKey)
+                } else if (this.schemaObject.required) {
+                    this.schemaObject.required = this.schemaObject.required.filter(r => r !== propertyKey)
+                }
+            }
+        }
+        type newT = Overwrite<T, T2>;
+        let result: SchemaBuilder<{[P in keyof newT]: newT[P]}> = this as any
+        return result
     }
 
     /**
@@ -664,9 +689,15 @@ export class SchemaBuilder<T> {
 
     /**
      * Deeply clone this schema. The new schema content can be modified safely.
+     * 
+     * @property schema
      */
-    clone(): this {
-        return new SchemaBuilder(_.cloneDeep(this.schemaObject)) as any
+    clone(schema: Pick<JSONSchema, JSONSchemaObjectProperties> = {}): this {
+        let schemaCopy = _.cloneDeep(this.schemaObject)
+        for (let propertyName in schema) {
+            schemaCopy[propertyName] = schema[propertyName]
+        }
+        return new SchemaBuilder(schemaCopy) as any
     }
 
     /**
@@ -710,11 +741,11 @@ export class SchemaBuilder<T> {
 
     /**
      * This property makes the access to the underlying T type easy.
-     * You can do things like type MyModel = typeof myModelSchemaBuilder.__T
-     * Or use GenericType["__T"] in a generic type definition.
+     * You can do things like type MyModel = typeof myModelSchemaBuilder.T
+     * Or use GenericType["T"] in a generic type definition.
      * It's not supposed to be set or accessed 
      */
-    readonly __T?: T
+    readonly T?: T
 }
 
 function validationError(ajvErrorsText) {
