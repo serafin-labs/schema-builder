@@ -1,4 +1,38 @@
 import { JSONSchema } from "@serafin/open-api";
+export declare type Diff<T extends string, U extends string> = ({
+    [P in T]: P;
+} & {
+    [P in U]: never;
+} & {
+    [x: string]: never;
+})[T];
+export declare type Omit<T, K extends keyof T> = Pick<T, Diff<keyof T, K>>;
+export declare type Overwrite<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & U;
+export declare type Merge<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & Omit<U, Diff<keyof U, Diff<keyof U, keyof T>>> & {
+    [P in keyof (T | U)]: (T[P] | U[P]);
+};
+export declare type DeepPartial<T> = {
+    [P in keyof T]?: DeepPartial<T[P]>;
+};
+export declare type Required<T> = {
+    [P in {
+        [P in keyof T]: keyof T;
+    }[keyof T]]: T[P];
+};
+export declare type PartialProperties<T, K extends keyof T> = Partial<Pick<T, K>> & Omit<T, K>;
+export declare type RequiredProperties<T, K extends keyof T> = Required<Pick<T, K>> & Omit<T, K>;
+export declare type Rename<T, K extends keyof T, K2 extends keyof any> = Omit<T, K> & {
+    [P in K2]: T[K];
+};
+export declare type RenameOptional<T, K extends keyof T, K2 extends keyof any> = Omit<T, K> & {
+    [P in K2]?: T[K];
+};
+export declare type Transform<T, K extends keyof T, U> = Omit<T, K> & {
+    [P in K]: (T[P] | U);
+};
+export declare type TransformToArray<T, K extends keyof T> = Omit<T, K> & {
+    [P in K]: (T[P] | T[P][]);
+};
 export declare class SchemaBuilder<T> {
     protected schemaObject: JSONSchema;
     readonly schema: JSONSchema;
@@ -16,22 +50,10 @@ export declare class SchemaBuilder<T> {
     static anyOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>): SchemaBuilder<T1 | T2 | (T1 & T2)>;
     static not(schemaBuilder: SchemaBuilder<any>): SchemaBuilder<any>;
     setOptionalProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
-        [x: string]: (Partial<Pick<T, K>> & Pick<T, ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]>)[string];
+        [P in keyof PartialProperties<T, K>]: PartialProperties<T, K>[P];
     }>;
     setRequiredProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
-        [x: string]: (Required<Pick<T, K>> & Pick<T, ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]>)[string];
+        [P in keyof RequiredProperties<T, K>]: RequiredProperties<T, K>[P];
     }>;
     toOptionals(): SchemaBuilder<Partial<T>>;
     toDeepOptionals(): SchemaBuilder<DeepPartial<T>>;
@@ -51,28 +73,6 @@ export declare class SchemaBuilder<T> {
     }>;
     addAdditionalProperties<U = any>(schemaBuilder?: SchemaBuilder<U>): SchemaBuilder<T & {
         [P: string]: U;
-    }>;
-    addObject<U extends {}, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>): SchemaBuilder<{
-        [P in keyof (T & {
-            [P in K]: {
-                [P in keyof U]: U[P];
-            };
-        })]: (T & {
-            [P in K]: {
-                [P in keyof U]: U[P];
-            };
-        })[P];
-    }>;
-    addOptionalObject<U extends {}, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>): SchemaBuilder<{
-        [P in keyof (T & {
-            [P in K]?: {
-                [P in keyof U]: U[P];
-            };
-        })]: (T & {
-            [P in K]?: {
-                [P in keyof U]: U[P];
-            };
-        })[P];
     }>;
     addString<K extends keyof any>(propertyName: K, schema?: Pick<JSONSchema, JSONSchemaStringProperties>): SchemaBuilder<{
         [P in keyof (T & {
@@ -146,24 +146,16 @@ export declare class SchemaBuilder<T> {
     }>;
     addArray<U extends {}, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema?: Pick<JSONSchema, JSONSchemaArrayProperties>): SchemaBuilder<{
         [P in keyof (T & {
-            [P in K]: {
-                [P in keyof U]: U[P];
-            }[];
+            [P in K]: U[];
         })]: (T & {
-            [P in K]: {
-                [P in keyof U]: U[P];
-            }[];
+            [P in K]: U[];
         })[P];
     }>;
     addOptionalArray<U extends {}, K extends keyof any>(propertyName: K, items: SchemaBuilder<U>, schema?: Pick<JSONSchema, JSONSchemaArrayProperties>): SchemaBuilder<{
         [P in keyof (T & {
-            [P in K]?: {
-                [P in keyof U]: U[P];
-            }[];
+            [P in K]?: U[];
         })]: (T & {
-            [P in K]?: {
-                [P in keyof U]: U[P];
-            }[];
+            [P in K]?: U[];
         })[P];
     }>;
     addStringArray<K extends keyof any>(propertyName: K, schema?: Pick<JSONSchema, JSONSchemaArrayProperties>): SchemaBuilder<{
@@ -181,70 +173,35 @@ export declare class SchemaBuilder<T> {
         })[P];
     }>;
     renameProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<{
-        [x: string]: (Pick<T, ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]> & {
-            [P in K2]: T[K];
-        })[string];
+        [P in keyof Rename<T, K, K2>]: Rename<T, K, K2>[P];
     }>;
     renameOptionalProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<{
-        [x: string]: (Pick<T, ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]> & {
-            [P in K2]?: T[K];
-        })[string];
+        [P in keyof RenameOptional<T, K, K2>]: RenameOptional<T, K, K2>[P];
     }>;
     pickProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
         [P in K]: T[P];
     }>;
-    pickAdditionalProperties<K extends keyof T, K2 extends keyof T = null>(properties: K[], additionalProperties?: K2[]): SchemaBuilder<{}>;
-    omitProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
-        [P in ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]]: Pick<T, ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]>[P];
+    pickAdditionalProperties<K extends keyof T, K2 extends keyof T = null>(properties: K[], additionalProperties?: K2[]): SchemaBuilder<{
+        [P in keyof (Pick<T, K> & {
+            [P in K2]: T[P];
+        })]: (Pick<T, K> & {
+            [P in K2]: T[P];
+        })[P];
     }>;
-    transformProperties<U, K extends keyof T, K2 extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<{
-        [x: string]: (Pick<T, ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]> & {
-            [P in K]: U | T[P];
-        })[string];
+    omitProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
+        [P in keyof Omit<T, K>]: Omit<T, K>[P];
+    }>;
+    transformProperties<U, K extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<{
+        [P in keyof Transform<T, K, U>]: Transform<T, K, U>[P];
     }>;
     transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<{
-        [x: string]: (Pick<T, ({
-            [P in keyof T]: P;
-        } & {
-            [P in K]: never;
-        } & {
-            [x: string]: never;
-        })[keyof T]> & {
-            [P in K]: T[P] | T[P][];
-        })[string];
+        [P in keyof TransformToArray<T, K>]: TransformToArray<T, K>[P];
+    }>;
+    intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{
+        [P in keyof (T & T2)]: (T & T2)[P];
     }>;
     mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{
-        [x: string]: Merge<T, T2>[string];
+        [P in keyof Merge<T, T2>]: Merge<T, T2>[P];
     }>;
     overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{
         [P in keyof Overwrite<T, T2>]: Overwrite<T, T2>[P];
@@ -262,26 +219,6 @@ export declare class SchemaBuilder<T> {
     protected listValidationFunction: any;
     readonly T?: T;
 }
-export declare type Diff<T extends string, U extends string> = ({
-    [P in T]: P;
-} & {
-    [P in U]: never;
-} & {
-    [x: string]: never;
-})[T];
-export declare type Omit<T, K extends keyof T> = Pick<T, Diff<keyof T, K>>;
-export declare type Overwrite<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & U;
-export declare type Merge<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & Omit<U, Diff<keyof U, Diff<keyof U, keyof T>>> & {
-    [P in keyof (T | U)]: (T[P] | U[P]);
-};
-export declare type DeepPartial<T> = {
-    [P in keyof T]?: DeepPartial<T[P]>;
-};
-export declare type Required<T> = {
-    [P in {
-        [P in keyof T]: keyof T;
-    }[keyof T]]: T[P];
-};
 export declare type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "example" | "deprecated" | "readOnly" | "writeOnly";
 export declare type JSONSchemaStringProperties = "description" | "default" | "maxLength" | "minLength" | "pattern" | "format" | "example" | "deprecated" | "readOnly" | "writeOnly";
 export declare type JSONSchemaNumberProperties = "description" | "default" | "multipleOf" | "maximum" | "exclusiveMaximum" | "minimum" | "exclusiveMinimum" | "example" | "deprecated" | "readOnly" | "writeOnly";
