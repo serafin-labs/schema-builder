@@ -58,6 +58,7 @@ typings/
 .env
 
 # specific
+/lib
 /.history
 /.idea
 /.DS_Store
