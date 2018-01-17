@@ -163,7 +163,7 @@ type UserPatch = {
 }
 ```
 
-We can now use the ```validate``` method to validate data against our schema. The validation use ```Ajv``` and a custom meta schema that match OpenApi specifications.
+We can now use the ```validate``` method to validate data against our schema. The validation use ```Ajv``` and a custom meta schema that match Open Api 3 specifications.
 
 ```typescript
 userPatchSchema.validate({
@@ -172,7 +172,7 @@ userPatchSchema.validate({
 })
 ```
 
-There's more! This was a simple example. This library provides also a lot of transformation operation that you can apply to your schemas.
+There's more! This was a simple example. This library provides also a lot of transformation operations that you can apply to your schemas.
 
 
 ## Usage
