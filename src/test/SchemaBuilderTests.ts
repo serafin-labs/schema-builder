@@ -10,16 +10,322 @@ describe('Schema Builder', function () {
         expect(schemaBuilder.schema).to.exist
     });
 
-    it('should initialize a simple schema and validate data', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("test")
-        expect(schemaBuilder).to.exist
-        expect(schemaBuilder.validate.bind(schemaBuilder, {
-            test: "aString"
-        })).to.not.throw()
-        expect(schemaBuilder.validate.bind(schemaBuilder, {
-            t: 42
-        })).to.throw()
+    it('should fail to initialize with a JSON schema that contains $ref', function () {
+        expect(() => new SchemaBuilder({ "$ref": "aReference" })).to.throw()
     });
+
+    it('should dereferenced a schema', async function () {
+        let schemaBuilder = await SchemaBuilder.dereferencedSchema({
+            definitions: {
+                test: { type: "string" }
+            },
+            properties: {
+                a: { $ref: "#/definitions/test" }
+            }
+        })
+        expect(schemaBuilder.schema.properties.a.type).to.eqls("string")
+    });
+
+    it('should create oneOf, allOf, anyOf and not schemas', function () {
+        let schemaBuilder = SchemaBuilder.oneOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema())
+        expect(schemaBuilder.schema.oneOf.length).to.eqls(2)
+        let schemaBuilder2 = SchemaBuilder.allOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema({ title: "test" }))
+        expect(schemaBuilder2.schema.allOf.length).to.eqls(2)
+        let schemaBuilder3 = SchemaBuilder.anyOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema())
+        expect(schemaBuilder3.schema.anyOf.length).to.eqls(2)
+        let schemaBuilder4 = SchemaBuilder.not(SchemaBuilder.stringSchema())
+        expect(schemaBuilder4.schema.not).to.exist
+    });
+
+    it('should create simple properties and validate data', function () {
+        let subObjectSchemaBuilder = SchemaBuilder.emptySchema().addString("s");
+        let schemaBuilder = SchemaBuilder.emptySchema()
+            .addString("s1")
+            .addOptionalString("s2", {})
+            .addNumber("n1")
+            .addOptionalNumber("n2", {})
+            .addInteger("i1")
+            .addOptionalInteger("i2", {})
+            .addBoolean("b1")
+            .addOptionalBoolean("b2", {})
+            .addEnum("e1", ["a", "b", "c"])
+            .addOptionalEnum("e2", ["a", "b", "c"], {})
+            .addProperty("o1", subObjectSchemaBuilder)
+            .addOptionalProperty("o2", subObjectSchemaBuilder)
+            .addStringArray("sa1")
+            .addOptionalStringArray("sa2", {})
+            .addArray("a1", subObjectSchemaBuilder)
+            .addOptionalArray("a2", subObjectSchemaBuilder)
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s1: "test",
+            n1: 42.42,
+            i1: 42,
+            b1: true,
+            e1: "a",
+            o1: { s: "test" },
+            sa1: ["test"],
+            a1: [{ s: "test" }]
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+        } as any)).to.throw()
+    });
+
+    it('should fail to add a property that already exists', function () {
+        expect(() => SchemaBuilder.emptySchema().addString("s1").addBoolean("s1")).to.throw()
+        expect(() => SchemaBuilder.emptySchema().addString("s1").addOptionalBoolean("s1")).to.throw()
+    });
+
+    it('should fail to add a property to a non-object schema', function () {
+        expect(() => SchemaBuilder.stringSchema().addString("s1")).to.throw()
+        expect(() => SchemaBuilder.stringSchema().addOptionalString("s1")).to.throw()
+    });
+
+    it('should create a schema with additional properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties();
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s: "test",
+            test: 42
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s: {},
+            test: 42
+        } as any)).to.throw()
+    });
+
+    it('should fail to create additional properties if it is alread set', function () {
+        expect(() => SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().addAdditionalProperties()).to.throw()
+    });
+
+    it('should set optional properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addBoolean("b").setOptionalProperties(["s"]);
+        expect(() => schemaBuilder.validate({
+            b: true
+        })).to.not.throw()
+    });
+
+    it('should set required properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addOptionalBoolean("b").setRequiredProperties(["b"]);
+        expect(() => schemaBuilder.validate({
+            s: "test",
+            b: true
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s: "test"
+        } as any)).to.throw()
+    });
+
+    it('should convert to optionals', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addBoolean("b").toOptionals();
+        expect(() => schemaBuilder.validate({})).to.not.throw()
+    });
+
+    it('should convert to deep optionals', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema()
+            .addProperty("s", SchemaBuilder.emptySchema()
+                .addString("ss")
+                .addBoolean("sb"))
+            .addBoolean("b")
+            .toDeepOptionals();
+        expect(() => schemaBuilder.validate({ s: { ss: "test" } })).to.not.throw()
+    });
+
+
+    it('should rename an optional property', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").renameOptionalProperty("s", "s2");
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s2: "test"
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({})).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s2: {}
+        } as any)).to.throw()
+    });
+
+    it('should rename a property', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").renameProperty("s", "s2");
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s2: "test"
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s: "test"
+        } as any)).to.throw()
+    });
+
+    it('should pick properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addOptionalBoolean("b").pickProperties(["b"])
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            b: true
+        })).to.not.throw()
+        let o = {
+            s: "test",
+            b: true
+        }
+        expect(() => schemaBuilder.validate(o as any)).to.not.throw()
+        expect(o.s).not.to.exist
+    })
+
+    it('should omit properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addOptionalBoolean("b").omitProperties(["s"])
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            b: true
+        })).to.not.throw()
+        let o = {
+            s: "test",
+            b: true
+        }
+        expect(() => schemaBuilder.validate(o as any)).to.not.throw()
+        expect(o.s).not.to.exist
+    })
+
+    it('should pick additional properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().pickAdditionalProperties(["s"], [])
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s: "test",
+            test: 42
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s: {},
+            test: 42
+        } as any)).to.throw()
+    })
+
+    it('should remove additional properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().pickAdditionalProperties(["s"])
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s: "test"
+        })).to.not.throw()
+        let o = {
+            s: "test",
+            test: 42
+        }
+        expect(() => schemaBuilder.validate(o as any)).to.not.throw()
+        expect(o.test).to.not.exist
+    })
+
+    it('should pick specific additional properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().pickAdditionalProperties(["s"], ["test"])
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s: "test",
+            test: 42
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s: "test",
+            test2: 42
+        } as any)).to.throw()
+    })
+
+    it('should transform properties type', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addStringArray("s").transformProperties(SchemaBuilder.stringSchema(), ["s"])
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s: ["test"]
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s: [{ a: "test" }]
+        } as any)).to.throw()
+        let schemaBuilder2 = SchemaBuilder.emptySchema().addStringArray("s").transformProperties(SchemaBuilder.stringSchema())
+        expect(schemaBuilder2).to.exist
+        expect(() => schemaBuilder2.validate({
+            s: ["test"]
+        })).to.not.throw()
+        expect(() => schemaBuilder2.validate({
+            s: [{ a: "test" }]
+        } as any)).to.throw()
+    })
+
+    it('should transform properties to array', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").transformPropertiesToArray(["s"])
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            s: ["test"]
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            s: [{ a: "test" }]
+        } as any)).to.throw()
+        let schemaBuilder2 = SchemaBuilder.emptySchema().addString("s").transformPropertiesToArray()
+        expect(schemaBuilder2).to.exist
+        expect(() => schemaBuilder2.validate({
+            s: ["test"]
+        })).to.not.throw()
+        expect(() => schemaBuilder2.validate({
+            s: [{ a: "test" }]
+        } as any)).to.throw()
+    })
+
+    it('should intersect properties', function () {
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addString("s").addBoolean("b")
+        let schemaBuilder2 = SchemaBuilder.emptySchema().addOptionalString("s").intersectProperties(schemaBuilder1)
+        expect(schemaBuilder2).to.exist
+        expect(() => schemaBuilder2.validate({
+            s: "test",
+            b: true
+        })).to.not.throw()
+        expect(() => schemaBuilder2.validate({
+            b: true
+        } as any)).to.throw()
+    })
+
+    it('should merge properties', function () {
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v")).addBoolean("b")
+        let schemaBuilder2 = SchemaBuilder.emptySchema().addOptionalBoolean("s").mergeProperties(schemaBuilder1)
+        expect(schemaBuilder2).to.exist
+        expect(() => schemaBuilder2.validate({
+            s: true,
+            b: true
+        })).to.not.throw()
+        expect(() => schemaBuilder2.validate({
+            s: { v: "test" },
+            b: true
+        })).to.not.throw()
+        expect(() => schemaBuilder2.validate({
+            b: true
+        } as any)).to.throw()
+    })
+
+    it('should overwrite properties', function () {
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v")).addBoolean("b").addOptionalBoolean("s2")
+        let schemaBuilder2 = SchemaBuilder.emptySchema().addOptionalBoolean("s").addString("s2").overwriteProperties(schemaBuilder1)
+        expect(schemaBuilder2).to.exist
+        expect(() => schemaBuilder2.validate({
+            s: { v: "test" },
+            b: true
+        })).to.not.throw()
+        expect(() => schemaBuilder2.validate({
+            s: false,
+            b: true
+        } as any)).to.throw()
+    })
+
+
+
+    it('should fail to transform with schemas that are not simple', function () {
+        let schemaBuilder = SchemaBuilder.allOf(SchemaBuilder.emptySchema().addString("s"), SchemaBuilder.emptySchema().addBoolean("b"));
+        expect(schemaBuilder.hasSchemasCombinationKeywords).to.be.true
+        expect(schemaBuilder.isSimpleObjectSchema).to.be.false
+        expect(schemaBuilder.isObjectSchema).to.be.false
+        expect(schemaBuilder.hasAditionalProperties).to.be.false
+        expect(() => schemaBuilder.setOptionalProperties([])).to.throw()
+        expect(() => schemaBuilder.setRequiredProperties([])).to.throw()
+        expect(() => schemaBuilder.renameProperty("s", "s1")).to.throw()
+        expect(() => schemaBuilder.renameOptionalProperty("s", "s1")).to.throw()
+        expect(() => schemaBuilder.pickProperties(["s"])).to.throw()
+        expect(() => schemaBuilder.omitProperties(["s"])).to.throw()
+        expect(() => schemaBuilder.pickAdditionalProperties(["s"])).to.throw()
+        expect(() => schemaBuilder.transformProperties(SchemaBuilder.stringSchema(), ["s"])).to.throw()
+        expect(() => schemaBuilder.transformPropertiesToArray()).to.throw()
+        expect(() => schemaBuilder.intersectProperties(SchemaBuilder.emptySchema())).to.throw()
+        expect(() => schemaBuilder.mergeProperties(SchemaBuilder.emptySchema())).to.throw()
+        expect(() => schemaBuilder.overwriteProperties(SchemaBuilder.emptySchema())).to.throw()
+    })
 
     it('should initialize a complex schema and validate data', function () {
         let taskSchema = SchemaBuilder.emptySchema()
@@ -66,20 +372,27 @@ describe('Schema Builder', function () {
             }]
         })).to.throw()
 
-        let queryUserSchema = userSchema.clone()
-            .pickProperties(["firstName", "lastName", "age", "email", "tags"])
+        let queryUserSchema = userSchema.clone({ title: "UserQuery" })
             .transformProperties(SchemaBuilder.stringSchema(), ["tags"])
+            .pickProperties(["firstName", "lastName", "age", "email", "tags"])
             .transformPropertiesToArray(["firstName", "lastName", "age", "email"])
             .toOptionals()
-        expect(queryUserSchema).to.exist
-        expect(queryUserSchema.validate.bind(queryUserSchema, {
+        type QueryUser = typeof queryUserSchema.T;
+        let q: QueryUser = {
             tags: "admin",
             age: [30, 31]
-        })).to.not.throw()
+        }
+        expect(queryUserSchema).to.exist
+        expect(() => queryUserSchema.validate(q)).to.not.throw()
+        expect(() => queryUserSchema.validateList([q])).to.not.throw()
         expect(queryUserSchema.validate.bind(queryUserSchema, {
             tags: "admin",
             age: "test"
         })).to.throw()
+        expect(queryUserSchema.validateList.bind(queryUserSchema, [{
+            tags: "admin",
+            age: "test"
+        }])).to.throw()
     });
 
 });

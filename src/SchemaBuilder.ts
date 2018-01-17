@@ -318,6 +318,7 @@ export class SchemaBuilder<T> {
     /**
      * Add additional properties schema.
      * /!\ Many type operations can't work properly with index signatures. Try to use additionalProperties at the last step of your SchemaBuilder definition.
+     * /!\ In typescript index signature MUST be compatible with other properties. However its supported in JSON schema, you can use it but you have to force the index singature to any.
      * 
      * @param schemaBuilder 
      */
@@ -482,9 +483,6 @@ export class SchemaBuilder<T> {
             throw new VError(`Schema Builder Error: 'renameProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {};
-        if (newPropertyName in this.schemaObject.properties) {
-            throw new VError(`Schema Builder Error: '${newPropertyName}' already exists in ${this.schemaObject.title || 'this'} schema`);
-        }
         if (propertyName in this.schemaObject.properties) {
             this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
             delete this.schemaObject.properties[propertyName]
@@ -508,14 +506,14 @@ export class SchemaBuilder<T> {
             throw new VError(`Schema Builder Error: 'renameOptionalProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {};
-        if (newPropertyName in this.schemaObject.properties) {
-            throw new VError(`Schema Builder Error: '${newPropertyName}' already exists in ${this.schemaObject.title || 'this'} schema`);
-        }
         if (propertyName in this.schemaObject.properties) {
             this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
             delete this.schemaObject.properties[propertyName]
             if (this.schemaObject.required && this.schemaObject.required.indexOf(propertyName) !== -1) {
                 this.schemaObject.required.splice(this.schemaObject.required.indexOf(propertyName), 1)
+                if (this.schemaObject.required.length === 0) {
+                    delete this.schemaObject.required
+                }
             }
         }
         return this as any
@@ -533,11 +531,7 @@ export class SchemaBuilder<T> {
         this.schemaObject.properties = this.schemaObject.properties || {}
         let propertiesMap: any = {}
         for (let property of properties) {
-            if (property in this.schemaObject.properties) {
-                propertiesMap[property] = this.schemaObject.properties[property];
-            } else {
-                throw new VError(`Schema Builder Error: picked property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`);
-            }
+            propertiesMap[property] = this.schemaObject.properties[property];
         }
         this.schemaObject.properties = propertiesMap;
         if (this.schemaObject.required) {
@@ -598,11 +592,9 @@ export class SchemaBuilder<T> {
             throw new VError(`Schema Builder Error: 'transformProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
         this.schemaObject.properties = this.schemaObject.properties || {}
+        propertyNames = propertyNames || Object.keys(this.schemaObject.properties) as any
         for (let property of propertyNames) {
             let propertySchema = this.schemaObject.properties[property];
-            if (!propertySchema) {
-                throw new VError(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
-            }
             this.schemaObject.properties[property] = {
                 oneOf: [propertySchema, schemaBuilder.schemaObject]
             }
@@ -623,9 +615,6 @@ export class SchemaBuilder<T> {
         propertyNames = propertyNames || Object.keys(this.schemaObject.properties) as any
         for (let property of propertyNames) {
             let propertySchema = this.schemaObject.properties[property];
-            if (!propertySchema) {
-                throw new VError(`Schema Builder Error: property ${property} is not avaialble in ${this.schemaObject.title || 'this'} schema.`)
-            }
             this.schemaObject.properties[property] = {
                 oneOf: [propertySchema, { type: "array", items: propertySchema }]
             }
