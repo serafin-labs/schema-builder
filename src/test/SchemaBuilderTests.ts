@@ -373,9 +373,9 @@ describe('Schema Builder', function () {
         })).to.throw()
 
         let queryUserSchema = userSchema.clone({ title: "UserQuery" })
-            .transformProperties(SchemaBuilder.stringSchema(), ["tags"])
             .pickProperties(["firstName", "lastName", "age", "email", "tags"])
             .transformPropertiesToArray(["firstName", "lastName", "age", "email"])
+            .transformProperties(SchemaBuilder.stringSchema(), ["tags"])
             .toOptionals()
         type QueryUser = typeof queryUserSchema.T;
         let q: QueryUser = {

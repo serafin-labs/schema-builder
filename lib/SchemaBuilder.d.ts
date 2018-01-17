@@ -1,4 +1,7 @@
 import { JSONSchema } from "@serafin/open-api";
+export declare type Resolve<T> = {
+    [P in keyof T]: T[P];
+};
 export declare type Diff<T extends string, U extends string> = ({
     [P in T]: P;
 } & {
@@ -7,10 +10,10 @@ export declare type Diff<T extends string, U extends string> = ({
     [x: string]: never;
 })[T];
 export declare type Omit<T, K extends keyof T> = Pick<T, Diff<keyof T, K>>;
-export declare type Overwrite<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & U;
-export declare type Merge<T, U> = Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & Omit<U, Diff<keyof U, Diff<keyof U, keyof T>>> & {
+export declare type Overwrite<T, U> = Resolve<Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & U>;
+export declare type Merge<T, U> = Resolve<Omit<T, Diff<keyof T, Diff<keyof T, keyof U>>> & Omit<U, Diff<keyof U, Diff<keyof U, keyof T>>> & {
     [P in keyof (T | U)]: (T[P] | U[P]);
-};
+}>;
 export declare type DeepPartial<T> = {
     [P in keyof T]?: DeepPartial<T[P]>;
 };
@@ -19,20 +22,20 @@ export declare type Required<T> = {
         [P in keyof T]: keyof T;
     }[keyof T]]: T[P];
 };
-export declare type PartialProperties<T, K extends keyof T> = Partial<Pick<T, K>> & Omit<T, K>;
-export declare type RequiredProperties<T, K extends keyof T> = Required<Pick<T, K>> & Omit<T, K>;
-export declare type Rename<T, K extends keyof T, K2 extends keyof any> = Omit<T, K> & {
+export declare type PartialProperties<T, K extends keyof T> = Resolve<Partial<Pick<T, K>> & Omit<T, K>>;
+export declare type RequiredProperties<T, K extends keyof T> = Resolve<Required<Pick<T, K>> & Omit<T, K>>;
+export declare type Rename<T, K extends keyof T, K2 extends keyof any> = Resolve<Omit<T, K> & {
     [P in K2]: T[K];
-};
-export declare type RenameOptional<T, K extends keyof T, K2 extends keyof any> = Omit<T, K> & {
+}>;
+export declare type RenameOptional<T, K extends keyof T, K2 extends keyof any> = Resolve<Omit<T, K> & {
     [P in K2]?: T[K];
-};
-export declare type Transform<T, K extends keyof T, U> = Omit<T, K> & {
+}>;
+export declare type Transform<T, K extends keyof T, U> = Resolve<Omit<T, K> & {
     [P in K]: (T[P] | U);
-};
-export declare type TransformToArray<T, K extends keyof T> = Omit<T, K> & {
+}>;
+export declare type TransformToArray<T, K extends keyof T> = Resolve<Omit<T, K> & {
     [P in K]: (T[P] | T[P][]);
-};
+}>;
 export declare class SchemaBuilder<T> {
     protected schemaObject: JSONSchema;
     readonly schema: JSONSchema;
@@ -49,13 +52,11 @@ export declare class SchemaBuilder<T> {
     static allOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>): SchemaBuilder<T1 & T2>;
     static anyOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>): SchemaBuilder<T1 | T2 | (T1 & T2)>;
     static not(schemaBuilder: SchemaBuilder<any>): SchemaBuilder<any>;
-    setOptionalProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
-        [P in keyof PartialProperties<T, K>]: PartialProperties<T, K>[P];
+    setOptionalProperties<K extends keyof T>(properties: K[]): SchemaBuilder<PartialProperties<T, K>>;
+    setRequiredProperties<K extends keyof T>(properties: K[]): SchemaBuilder<RequiredProperties<T, K>>;
+    toOptionals(): SchemaBuilder<{
+        [P in keyof T]?: T[P];
     }>;
-    setRequiredProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
-        [P in keyof RequiredProperties<T, K>]: RequiredProperties<T, K>[P];
-    }>;
-    toOptionals(): SchemaBuilder<Partial<T>>;
     toDeepOptionals(): SchemaBuilder<DeepPartial<T>>;
     addProperty<U, K extends keyof any>(propertyName: K, schemaBuilder: SchemaBuilder<U>): SchemaBuilder<{
         [P in keyof (T & {
@@ -172,40 +173,20 @@ export declare class SchemaBuilder<T> {
             [P in K]?: string[];
         })[P];
     }>;
-    renameProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<{
-        [P in keyof Rename<T, K, K2>]: Rename<T, K, K2>[P];
-    }>;
-    renameOptionalProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<{
-        [P in keyof RenameOptional<T, K, K2>]: RenameOptional<T, K, K2>[P];
-    }>;
+    renameProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<Rename<T, K, K2>>;
+    renameOptionalProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<RenameOptional<T, K, K2>>;
     pickProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
         [P in K]: T[P];
     }>;
-    pickAdditionalProperties<K extends keyof T, K2 extends keyof T = null>(properties: K[], additionalProperties?: K2[]): SchemaBuilder<{
-        [P in keyof (Pick<T, K> & {
-            [P in K2]: T[P];
-        })]: (Pick<T, K> & {
-            [P in K2]: T[P];
-        })[P];
-    }>;
-    omitProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{
-        [P in keyof Omit<T, K>]: Omit<T, K>[P];
-    }>;
-    transformProperties<U, K extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<{
-        [P in keyof Transform<T, K, U>]: Transform<T, K, U>[P];
-    }>;
-    transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<{
-        [P in keyof TransformToArray<T, K>]: TransformToArray<T, K>[P];
-    }>;
-    intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{
-        [P in keyof (T & T2)]: (T & T2)[P];
-    }>;
-    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{
-        [P in keyof Merge<T, T2>]: Merge<T, T2>[P];
-    }>;
-    overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{
-        [P in keyof Overwrite<T, T2>]: Overwrite<T, T2>[P];
-    }>;
+    pickAdditionalProperties<K extends keyof T, K2 extends keyof T = null>(properties: K[], additionalProperties?: K2[]): SchemaBuilder<Resolve<Pick<T, K> & {
+        [P in K2]: T[P];
+    }>>;
+    omitProperties<K extends keyof T>(properties: K[]): SchemaBuilder<Omit<T, K>>;
+    transformProperties<U, K extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<Transform<T, K, U>>;
+    transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<TransformToArray<T, K>>;
+    intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Resolve<T & T2>>;
+    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Merge<T, T2>>;
+    overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Overwrite<T, T2>>;
     readonly isSimpleObjectSchema: boolean;
     readonly isObjectSchema: boolean;
     readonly hasAditionalProperties: boolean;
