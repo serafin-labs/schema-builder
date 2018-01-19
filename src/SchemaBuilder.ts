@@ -237,7 +237,8 @@ export class SchemaBuilder<T> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
-        let required = []
+        let required = [];
+        this.schemaObject.properties = this.schemaObject.properties || {};
         for (let property in this.schemaObject.properties) {
             if ((properties as string[]).indexOf(property) === -1) {
                 required.push(property)
@@ -640,20 +641,23 @@ export class SchemaBuilder<T> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'intersectProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
-        for (let propertyKey in schema.schemaObject.properties) {
-            if (!(propertyKey in this.schemaObject.properties)) {
-                this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                    this.schemaObject.required = this.schemaObject.required || [];
-                    this.schemaObject.required.push(propertyKey)
-                }
-            } else {
-                this.schemaObject.properties[propertyKey] = {
-                    allOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
-                }
-                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1 && (!this.schemaObject.required || this.schemaObject.required.indexOf(propertyKey) === -1)) {
-                    this.schemaObject.required = this.schemaObject.required || [];
-                    this.schemaObject.required.push(propertyKey)
+        if (schema.schemaObject.properties) {
+            this.schemaObject.properties = this.schemaObject.properties || {};
+            for (let propertyKey in schema.schemaObject.properties) {
+                if (!(propertyKey in this.schemaObject.properties)) {
+                    this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
+                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
+                        this.schemaObject.required = this.schemaObject.required || [];
+                        this.schemaObject.required.push(propertyKey)
+                    }
+                } else {
+                    this.schemaObject.properties[propertyKey] = {
+                        allOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
+                    }
+                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1 && (!this.schemaObject.required || this.schemaObject.required.indexOf(propertyKey) === -1)) {
+                        this.schemaObject.required = this.schemaObject.required || [];
+                        this.schemaObject.required.push(propertyKey)
+                    }
                 }
             }
         }
@@ -670,20 +674,23 @@ export class SchemaBuilder<T> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
-        for (let propertyKey in schema.schemaObject.properties) {
-            if (!(propertyKey in this.schemaObject.properties)) {
-                this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                    this.schemaObject.required = this.schemaObject.required || [];
-                    this.schemaObject.required.push(propertyKey)
-                }
-            } else {
-                this.schemaObject.properties[propertyKey] = {
-                    oneOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
-                }
-                if (!this.schemaObject.required || this.schemaObject.required.indexOf(propertyKey) === -1) {
-                    this.schemaObject.required = this.schemaObject.required || [];
-                    this.schemaObject.required.push(propertyKey)
+        if (schema.schemaObject.properties) {
+            this.schemaObject.properties = this.schemaObject.properties || {};
+            for (let propertyKey in schema.schemaObject.properties) {
+                if (!(propertyKey in this.schemaObject.properties)) {
+                    this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
+                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
+                        this.schemaObject.required = this.schemaObject.required || [];
+                        this.schemaObject.required.push(propertyKey)
+                    }
+                } else {
+                    this.schemaObject.properties[propertyKey] = {
+                        oneOf: [this.schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
+                    }
+                    if (!this.schemaObject.required || this.schemaObject.required.indexOf(propertyKey) === -1) {
+                        this.schemaObject.required = this.schemaObject.required || [];
+                        this.schemaObject.required.push(propertyKey)
+                    }
                 }
             }
         }
@@ -700,20 +707,23 @@ export class SchemaBuilder<T> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'overwriteProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
-        for (let propertyKey in schema.schemaObject.properties) {
-            if (!(propertyKey in this.schemaObject.properties)) {
-                this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                    this.schemaObject.required = this.schemaObject.required || [];
-                    this.schemaObject.required.push(propertyKey)
-                }
-            } else {
-                this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                    this.schemaObject.required = this.schemaObject.required || [];
-                    this.schemaObject.required.push(propertyKey)
-                } else if (this.schemaObject.required) {
-                    this.schemaObject.required = this.schemaObject.required.filter(r => r !== propertyKey)
+        if (schema.schemaObject.properties) {
+            this.schemaObject.properties = this.schemaObject.properties || {};
+            for (let propertyKey in schema.schemaObject.properties) {
+                if (!(propertyKey in this.schemaObject.properties)) {
+                    this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
+                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
+                        this.schemaObject.required = this.schemaObject.required || [];
+                        this.schemaObject.required.push(propertyKey)
+                    }
+                } else {
+                    this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
+                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
+                        this.schemaObject.required = this.schemaObject.required || [];
+                        this.schemaObject.required.push(propertyKey)
+                    } else if (this.schemaObject.required) {
+                        this.schemaObject.required = this.schemaObject.required.filter(r => r !== propertyKey)
+                    }
                 }
             }
         }

@@ -274,6 +274,10 @@ describe('Schema Builder', function () {
         } as any)).to.throw()
     })
 
+    it('should intersectProperties work with an empty schema', function () {
+        expect(() => SchemaBuilder.emptySchema().intersectProperties(SchemaBuilder.emptySchema().addString('test'))).to.not.throw()
+    });
+
     it('should merge properties', function () {
         let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v")).addBoolean("b")
         let schemaBuilder2 = SchemaBuilder.emptySchema().addOptionalBoolean("s").mergeProperties(schemaBuilder1)
