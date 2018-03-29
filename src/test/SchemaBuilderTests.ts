@@ -99,7 +99,7 @@ describe('Schema Builder', function () {
     });
 
     it('should set optional properties', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addBoolean("b").setOptionalProperties(["s"]);
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addBoolean("b").addOptionalBoolean("c").setOptionalProperties(["s"]);
         expect(() => schemaBuilder.validate({
             b: true
         })).to.not.throw()
@@ -122,10 +122,10 @@ describe('Schema Builder', function () {
     });
 
     it('should convert to deep optionals', function () {
+        let innerSchema = SchemaBuilder.emptySchema().addString("ss")
+            .addBoolean("sb");
         let schemaBuilder = SchemaBuilder.emptySchema()
-            .addProperty("s", SchemaBuilder.emptySchema()
-                .addString("ss")
-                .addBoolean("sb"))
+            .addProperty("s", innerSchema)
             .addBoolean("b")
             .toDeepOptionals();
         expect(() => schemaBuilder.validate({ s: { ss: "test" } })).to.not.throw()
