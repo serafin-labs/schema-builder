@@ -113,6 +113,7 @@ export interface JsonSchemaTypeInterface {
 /**
  * /!\ Experimental
  * Conditional type that can "parse" an inlined json schema and deduce the associated Typescript type
+ * REQUIRED only works with one element currently
  */
 export type JsonSchema<T extends JsonSchemaTypeInterface> = T extends { type: infer TYPE, properties?: infer PROPERTIES, items?: infer ITEM, required?: Array<infer REQUIRED>, enum?: infer ENUM } ?
     TYPE extends "integer" | "number" ?
@@ -142,10 +143,14 @@ export interface JsonSchemaArray<T extends JsonSchemaTypeInterface> extends Arra
 /**
  * /!\ Experimental
  * Map type to handle properties inside an inlined json schema.
- * JsonSchemaArray<T[P]>[0] is a "hack" to avoid circular reference
+ * ExtractArrayType<JsonSchemaArray<T[P]>> is a "hack" to avoid circular reference
  */
-export type JsonProperties<T extends { [P in keyof T]: any }, R extends keyof T> = { [P in R]: JsonSchemaArray<T[P]>[0] } & { [P in Exclude<keyof T, R>]?: JsonSchemaArray<T[P]>[0] }
+export type JsonProperties<T extends { [P in keyof T]: any }, R extends keyof T> = { [P in R]: ExtractArrayType<JsonSchemaArray<T[P]>> } & { [P in Exclude<keyof T, R>]?: ExtractArrayType<JsonSchemaArray<T[P]>> }
 
+/**
+ * Get the underlying type of an array
+ */
+export type ExtractArrayType<T extends any[]> = T extends Array<infer U> ? U : any;
 
 /**
  * Represents a JSON Schema and its type.
@@ -179,7 +184,7 @@ export class SchemaBuilder<T> {
      * 
      * @param schema 
      */
-    setSchema<S extends JSONSchema>(schema: S): SchemaBuilder<{ [P in keyof JsonProperties<S, null>]: JsonProperties<S, null>[P] }> {
+    setSchema<S extends JsonSchemaTypeInterface>(schema: S): SchemaBuilder<{ [P in keyof JsonSchema<S>]: JsonSchema<S>[P] }> {
         this.schemaObject = schema;
         throughJsonSchema(this.schemaObject, s => {
             if ("$ref" in s) {

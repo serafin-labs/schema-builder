@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import * as chai from "chai";
-import { SchemaBuilder } from "../";
+import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE, JsonProperties } from "../";
 
 describe('Schema Builder', function () {
 
@@ -398,5 +398,52 @@ describe('Schema Builder', function () {
             age: "test"
         }])).to.throw()
     });
+
+    it('should set an inline schema', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().setSchema({
+            type: OBJECT_TYPE,
+            properties: {
+                aString: {
+                    type: STRING_TYPE,
+                    description: "this is a test"
+                },
+                aBoolean: {
+                    type: BOOLEAN_TYPE,
+                },
+                anInteger: {
+                    type: INTEGER_TYPE,
+                    minimum: 0
+                },
+                aSubObject: {
+                    type: OBJECT_TYPE,
+                    properties: {
+                        aSubProperty: {
+                            type: NUMBER_TYPE,
+                            maximum: 100
+                        }
+                    }
+                },
+                anArray: {
+                    type: ARRAY_TYPE,
+                    items: {
+                        type: STRING_TYPE
+                    }
+                }
+            },
+            required: ["aBoolean" as "aBoolean"],
+            additionalProperties: false
+        })
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            aBoolean: false,
+            aSubObject: {
+                aSubProperty: 42
+            }
+        })).to.not.throw(),
+            expect(() => schemaBuilder.validate({
+                aBoolean: true,
+                anInteger: -1
+            } as any)).to.throw()
+    })
 
 });
