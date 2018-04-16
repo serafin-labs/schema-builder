@@ -54,7 +54,6 @@ export type PartialProperties<T, K extends keyof T> = Resolve<Partial<Pick<T, K>
  */
 export type RequiredProperties<T, K extends keyof T> = Resolve<Required<Pick<T, K>> & Omit<T, K>>
 
-
 /**
  * T with property K renamed to K2. Optional is detected with conditional type.
  * Note : {} extends {K?: any} is true whereas {} extends {K: any} is false
@@ -74,12 +73,17 @@ export type RenameOptional<T, K extends keyof T, K2 extends keyof any> = Resolve
 /**
  * T with properties K Transformed to U | T[K]
  */
-export type Transform<T, K extends keyof T, U> = Resolve<Omit<T, K> & { [P in K]: (T[P] | U) }>
+export type TransformProperties<T, K extends keyof T, U> = Resolve<Omit<T, K> & { [P in K]: (T[P] | U) }>
 
 /**
- * T with properties K Transformed to T[K] | T[K][]
+ * T with properties K Transformed to T[P] | T[P][] only if T[P] is not already an Array
  */
-export type TransformToArray<T, K extends keyof T> = Resolve<Omit<T, K> & { [P in K]: (T[P] | T[P][]) }>
+export type TransformPropertiesToArray<T, K extends keyof T> = Resolve<Omit<T, K> & { [P in K]: T[P] extends any[] ? T[P] : (T[P] | T[P][]) }>
+
+/**
+ * T with properties K Transformed to A | T[P] only if T[P] is A[]
+ */
+export type UnwrapArrayProperties<T, K extends keyof T> = Resolve<Omit<T, K> & { [P in K]: T[P] extends Array<infer A> ? (A | T[P]) : T[P] }>
 
 /**
  * Combine T with properties K of type U
