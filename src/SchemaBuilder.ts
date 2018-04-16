@@ -147,7 +147,7 @@ export class SchemaBuilder<T> {
     /**
      * Make given properties optionals
      */
-    setOptionalProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{[P in keyof PartialProperties<T, K>]: PartialProperties<T, K>[P]}> {
+    setOptionalProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{ [P in keyof PartialProperties<T, K>]: PartialProperties<T, K>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -169,7 +169,7 @@ export class SchemaBuilder<T> {
     /**
      * Make given properties required
      */
-    setRequiredProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{[P in keyof RequiredProperties<T, K>]: RequiredProperties<T, K>[P]}> {
+    setRequiredProperties<K extends keyof T>(properties: K[]): SchemaBuilder<{ [P in keyof RequiredProperties<T, K>]: RequiredProperties<T, K>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'setRequiredProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -365,7 +365,7 @@ export class SchemaBuilder<T> {
      * @param changedProperties properties that will have the alternative type
      * @param schemaBuilder 
      */
-    transformProperties<U, K extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<{[P in keyof TransformProperties<T, K, U>]: TransformProperties<T, K, U>[P]}> {
+    transformProperties<U, K extends keyof T>(schemaBuilder: SchemaBuilder<U>, propertyNames?: K[]): SchemaBuilder<{ [P in keyof TransformProperties<T, K, U>]: TransformProperties<T, K, U>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'transformProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -386,7 +386,7 @@ export class SchemaBuilder<T> {
      * 
      * @param propertyNames properties that will have the alternative array type
      */
-    transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<{[P in keyof TransformPropertiesToArray<T, K>]: TransformPropertiesToArray<T, K>[P]}> {
+    transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<{ [P in keyof TransformPropertiesToArray<T, K>]: TransformPropertiesToArray<T, K>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'transformPropertiesToArray' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -410,7 +410,7 @@ export class SchemaBuilder<T> {
      * 
      * @param propertyNames properties that will be unwrapped
      */
-    unwrapArrayProperties<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<{[P in keyof UnwrapArrayProperties<T, K>]: UnwrapArrayProperties<T, K>[P]}> {
+    unwrapArrayProperties<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<{ [P in keyof UnwrapArrayProperties<T, K>]: UnwrapArrayProperties<T, K>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'unwrapArrayProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -433,7 +433,7 @@ export class SchemaBuilder<T> {
      * This method only copy properties.
      * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      */
-    intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{[P in keyof (T & T2)]: (T & T2)[P]}> {
+    intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof (T & T2)]: (T & T2)[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'intersectProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -465,7 +465,7 @@ export class SchemaBuilder<T> {
      * This method only copy properties.
      * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      */
-    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{[P in keyof Merge<T, T2>]: Merge<T, T2>[P]}> {
+    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof Merge<T, T2>]: Merge<T, T2>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -497,7 +497,7 @@ export class SchemaBuilder<T> {
      * This method only copy properties.
      * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      */
-    overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{[P in keyof Overwrite<T, T2>]: Overwrite<T, T2>[P]}> {
+    overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof Overwrite<T, T2>]: Overwrite<T, T2>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'overwriteProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
