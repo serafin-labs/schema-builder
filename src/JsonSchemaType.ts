@@ -1,3 +1,7 @@
+/**
+ * This file contains a set of special conditional types used to transform a litteral JSON schema into the corresponding typescript type.
+ */
+
 // Constant string literals that helps defining inline json shemas
 export const STRING_TYPE = "string" as "string"
 export const INTEGER_TYPE = "integer" as "integer"

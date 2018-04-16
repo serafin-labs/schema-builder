@@ -4,93 +4,8 @@ import * as Ajv from 'ajv'
 import * as VError from 'verror'
 
 import { JSONSchema, metaSchema } from "@serafin/open-api"
-import { JsonSchemaType } from "./JsonSchema";
-
-/**
- * Resolve properties of T so it appears as a flat object instead of a composition
- */
-export type Resolve<T> = { [P in keyof T]: T[P] }
-
-/**
- * Drop keys K from T.
- *
- * @see https://github.com/Microsoft/TypeScript/issues/12215
- */
-export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
-
-/**
- * T & U but where overlapping properties use the type from U only.
- *
- * @see https://github.com/Microsoft/TypeScript/issues/12215
- */
-export type Overwrite<T, U> = Resolve<Omit<T, Extract<keyof T, keyof U>> & U>;
-
-/**
- * Like `T & U`, but where there are overlapping properties use the
- * type from T[P] | U[P].
- * For overloapping properties, optional info is lost. The property becomes mandatory.
- */
-export type Merge<T, U> = Resolve<Omit<T, Extract<keyof T, keyof U>> & Omit<U, Extract<keyof U, keyof T>> & { [P in keyof (T | U)]: (T[P] | U[P]) }>;
-
-
-/**
- * Type modifier that makes all properties optionals deeply
- */
-export type DeepPartial<T> =
-    T extends any[] ? DeepPartialArray<T[number]> :
-    T extends object ? DeepPartialObject<T> :
-    T;
-export type DeepPartialObject<T> = {
-    [P in keyof T]?: DeepPartial<T[P]>;
-};
-export interface DeepPartialArray<T> extends Array<DeepPartial<T>> { }
-
-/**
- * Make all properties of T required and non-nullable.
- */
-export type Required<T> = {
-    [P in keyof T]-?: T[P];
-}
-
-/**
- * T with properties K optionals
- */
-export type PartialProperties<T, K extends keyof T> = Resolve<Partial<Pick<T, K>> & Omit<T, K>>
-
-/**
- * T with properties K required
- */
-export type RequiredProperties<T, K extends keyof T> = Resolve<Required<Pick<T, K>> & Omit<T, K>>
-
-/**
- * T with property K renamed to K2
- */
-export type Rename<T, K extends keyof T, K2 extends keyof any> = Resolve<Omit<T, K> & { [P in K2]: T[K] }>
-
-/**
- * T with property K renamed to K2 and optional
- */
-export type RenameOptional<T, K extends keyof T, K2 extends keyof any> = Resolve<Omit<T, K> & { [P in K2]?: T[K] }>
-
-/**
- * T with properties K Transformed to U | T[K]
- */
-export type Transform<T, K extends keyof T, U> = Resolve<Omit<T, K> & { [P in K]: (T[P] | U) }>
-
-/**
- * T with properties K Transformed to T[K] | T[K][]
- */
-export type TransformToArray<T, K extends keyof T> = Resolve<Omit<T, K> & { [P in K]: (T[P] | T[P][]) }>
-
-/**
- * Combine T with properties K of type U
- */
-export type Combine<T, U, K extends keyof any> = T & { [P in K]: U }
-
-/**
- * Combine T with optional properties K of type U
- */
-export type CombineOptional<T, U, K extends keyof any> = T & { [P in K]?: U }
+import { JsonSchemaType } from "./JsonSchemaType";
+import { Combine, CombineOptional, DeepPartial, DeepPartialArray, DeepPartialObject, Merge, Omit, Overwrite, PartialProperties, Rename, RenameOptional, Required, RequiredProperties, Resolve, Transform, TransformToArray } from "./Types";
 
 /**
  * Represents a JSON Schema and its type.
@@ -496,7 +411,7 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Rename the given property. The property schema remains unchanged. The new property is required.
+     * Rename the given property. The property schema remains unchanged.
      * 
      * @param propertyName 
      * @param newPropertyName 
@@ -509,34 +424,10 @@ export class SchemaBuilder<T> {
         if (propertyName in this.schemaObject.properties) {
             this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
             delete this.schemaObject.properties[propertyName]
+            // rename the property in the required array if needed
             if (this.schemaObject.required && this.schemaObject.required.indexOf(propertyName) !== -1) {
                 this.schemaObject.required.splice(this.schemaObject.required.indexOf(propertyName), 1)
-            }
-            this.schemaObject.required = this.schemaObject.required || [];
-            this.schemaObject.required.push(newPropertyName)
-        }
-        return this as any
-    }
-
-    /**
-     * Rename the given property. The property schema remains unchanged. The new property is optional.
-     * 
-     * @param propertyName 
-     * @param newPropertyName 
-     */
-    renameOptionalProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<RenameOptional<T, K, K2>> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(`Schema Builder Error: 'renameOptionalProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
-        }
-        this.schemaObject.properties = this.schemaObject.properties || {};
-        if (propertyName in this.schemaObject.properties) {
-            this.schemaObject.properties[newPropertyName] = this.schemaObject.properties[propertyName]
-            delete this.schemaObject.properties[propertyName]
-            if (this.schemaObject.required && this.schemaObject.required.indexOf(propertyName) !== -1) {
-                this.schemaObject.required.splice(this.schemaObject.required.indexOf(propertyName), 1)
-                if (this.schemaObject.required.length === 0) {
-                    delete this.schemaObject.required
-                }
+                this.schemaObject.required.push(newPropertyName)
             }
         }
         return this as any

@@ -131,21 +131,8 @@ describe('Schema Builder', function () {
         expect(() => schemaBuilder.validate({ s: { ss: "test" } })).to.not.throw()
     });
 
-
-    it('should rename an optional property', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").renameOptionalProperty("s", "s2");
-        expect(schemaBuilder).to.exist
-        expect(() => schemaBuilder.validate({
-            s2: "test"
-        })).to.not.throw()
-        expect(() => schemaBuilder.validate({})).to.not.throw()
-        expect(() => schemaBuilder.validate({
-            s2: {}
-        } as any)).to.throw()
-    });
-
     it('should rename a property', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").renameProperty("s", "s2");
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addOptionalBoolean("b").renameProperty("s", "s2").renameProperty("b", "b2");
         expect(schemaBuilder).to.exist
         expect(() => schemaBuilder.validate({
             s2: "test"
@@ -320,7 +307,6 @@ describe('Schema Builder', function () {
         expect(() => schemaBuilder.setOptionalProperties([])).to.throw()
         expect(() => schemaBuilder.setRequiredProperties([])).to.throw()
         expect(() => schemaBuilder.renameProperty("s", "s1")).to.throw()
-        expect(() => schemaBuilder.renameOptionalProperty("s", "s1")).to.throw()
         expect(() => schemaBuilder.pickProperties(["s"])).to.throw()
         expect(() => schemaBuilder.omitProperties(["s"])).to.throw()
         expect(() => schemaBuilder.pickAdditionalProperties(["s"])).to.throw()
