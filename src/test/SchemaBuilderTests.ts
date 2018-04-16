@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import * as chai from "chai";
-import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE, JsonProperties } from "../";
+import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE } from "../";
 
 describe('Schema Builder', function () {
 
@@ -316,7 +316,7 @@ describe('Schema Builder', function () {
         expect(schemaBuilder.hasSchemasCombinationKeywords).to.be.true
         expect(schemaBuilder.isSimpleObjectSchema).to.be.false
         expect(schemaBuilder.isObjectSchema).to.be.false
-        expect(schemaBuilder.hasAditionalProperties).to.be.false
+        expect(schemaBuilder.hasAdditionalProperties).to.be.false
         expect(() => schemaBuilder.setOptionalProperties([])).to.throw()
         expect(() => schemaBuilder.setRequiredProperties([])).to.throw()
         expect(() => schemaBuilder.renameProperty("s", "s1")).to.throw()
@@ -400,7 +400,7 @@ describe('Schema Builder', function () {
     });
 
     it('should set an inline schema', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().setSchema({
+        let schemaBuilder = SchemaBuilder.fromJsonSchema({
             type: OBJECT_TYPE,
             properties: {
                 aString: {
@@ -430,7 +430,7 @@ describe('Schema Builder', function () {
                     }
                 }
             },
-            required: ["aBoolean" as "aBoolean"],
+            required: ["aBoolean" as "aBoolean", "anArray" as "anArray"],
             additionalProperties: false
         })
         expect(schemaBuilder).to.exist
@@ -438,7 +438,8 @@ describe('Schema Builder', function () {
             aBoolean: false,
             aSubObject: {
                 aSubProperty: 42
-            }
+            },
+            anArray: []
         })).to.not.throw(),
             expect(() => schemaBuilder.validate({
                 aBoolean: true,
