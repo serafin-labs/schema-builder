@@ -545,11 +545,8 @@ export class SchemaBuilder<T> {
      * Validate the given object against the schema. If the object is invalid an error is thrown with the appropriate details.
      */
     validate(o: T) {
-        // prepare validation function
-        if (!this.validationFunction) {
-            this.ajv = new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true, meta: metaSchema });
-            this.validationFunction = this.ajv.compile(this.schemaObject);
-        }
+        // ensure validation function is cached
+        this.cacheValidationFunction()
         // run validation
         let valid = this.validationFunction(o);
         // check if an error needs to be thrown
@@ -564,12 +561,8 @@ export class SchemaBuilder<T> {
      * Validate the given list of object against the schema. If any object is invalid, an error is thrown with the appropriate details.
      */
     validateList(list: T[]) {
-        // prepare validation function
-        if (!this.listValidationFunction) {
-            this.ajvList = new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true, meta: metaSchema });
-            this.ajvList.addSchema(this.schemaObject, "schema");
-            this.listValidationFunction = this.ajvList.compile({ type: "array", items: { $ref: "schema" }, minItems: 1 });
-        }
+        // ensure validation function is cached
+        this.cacheListValidationFunction()
         // run validation
         let valid = this.listValidationFunction(list);
         // check if an error needs to be thrown
@@ -579,6 +572,46 @@ export class SchemaBuilder<T> {
     }
     protected ajvList
     protected listValidationFunction;
+
+    /**
+     * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
+     * The default validation config is { coerceTypes: true, removeAdditional: true, useDefaults: true }
+     */
+    configureValidation(config: { coerceTypes?: boolean, removeAdditional?: boolean, useDefaults?: boolean }) {
+        for (let configParam in config) {
+            this.validationConfig[configParam] = config[configParam]
+        }
+        this.clearCache()
+    }
+    protected validationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true };
+    protected clearCache() {
+        delete this.ajvList
+        delete this.listValidationFunction
+        delete this.ajv
+        delete this.validationFunction
+    }
+
+    /**
+     * Explicitly cache the validation function for single objects with the current validation configuration
+     */
+    cacheValidationFunction() {
+        // prepare validation function
+        if (!this.validationFunction) {
+            this.ajv = new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true, meta: metaSchema });
+            this.validationFunction = this.ajv.compile(this.schemaObject);
+        }
+    }
+    /**
+     * Explicitly cache the validation function for list of objects with the current validation configuration
+     */
+    cacheListValidationFunction() {
+        // prepare validation function
+        if (!this.listValidationFunction) {
+            this.ajvList = new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true, meta: metaSchema });
+            this.ajvList.addSchema(this.schemaObject, "schema");
+            this.listValidationFunction = this.ajvList.compile({ type: "array", items: { $ref: "schema" }, minItems: 1 });
+        }
+    }
 
     /**
      * This property makes the access to the underlying T type easy.
