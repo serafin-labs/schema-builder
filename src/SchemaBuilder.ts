@@ -5,7 +5,7 @@ import * as VError from 'verror'
 
 import { JSONSchema, metaSchema } from "@serafin/open-api"
 import { JsonSchemaType } from "./JsonSchemaType";
-import { Combine, CombineOptional, DeepPartial, DeepPartialArray, DeepPartialObject, Merge, Omit, Overwrite, PartialProperties, Rename, RenameOptional, Required, RequiredProperties, Resolve, TransformProperties, TransformPropertiesToArray } from "./TransformationTypes";
+import { Combine, CombineOptional, DeepPartial, DeepPartialArray, DeepPartialObject, Merge, Omit, Overwrite, PartialProperties, Rename, RenameOptional, Required, RequiredProperties, Resolve, TransformProperties, TransformPropertiesToArray, UnwrapArrayProperties } from "./TransformationTypes";
 
 /**
  * Represents a JSON Schema and its type.
@@ -236,42 +236,42 @@ export class SchemaBuilder<T> {
     /**
      * Add a string to the schema properties
      */
-    addString<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, isRequired?: REQUIRED, schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, string, K>]: Combine<T, string, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, string, K>]: CombineOptional<T, string, K>[P] }> {
+    addString<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}, isRequired?: REQUIRED): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, string, K>]: Combine<T, string, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, string, K>]: CombineOptional<T, string, K>[P] }> {
         return this.addProperty(propertyName, SchemaBuilder.stringSchema(schema), isRequired)
     }
 
     /**
      * Add a string enum to the schema properties
      */
-    addEnum<K extends keyof any, K2 extends keyof any, REQUIRED extends boolean = true>(propertyName: K, values: K2[], isRequired?: REQUIRED, schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, K2, K>]: Combine<T, K2, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, K2, K>]: CombineOptional<T, K2, K>[P] }> {
+    addEnum<K extends keyof any, K2 extends keyof any, REQUIRED extends boolean = true>(propertyName: K, values: K2[], schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}, isRequired?: REQUIRED): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, K2, K>]: Combine<T, K2, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, K2, K>]: CombineOptional<T, K2, K>[P] }> {
         return this.addProperty(propertyName, SchemaBuilder.enumSchema(values, schema), isRequired)
     }
 
     /**
      * Add a number to the schema properties
      */
-    addNumber<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, isRequired?: REQUIRED, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, number, K>]: Combine<T, number, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, number, K>]: CombineOptional<T, number, K>[P] }> {
+    addNumber<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}, isRequired?: REQUIRED): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, number, K>]: Combine<T, number, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, number, K>]: CombineOptional<T, number, K>[P] }> {
         return this.addProperty(propertyName, SchemaBuilder.numberSchema(schema), isRequired)
     }
 
     /**
      * Add a number to the schema properties
      */
-    addInteger<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, isRequired?: REQUIRED, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, number, K>]: Combine<T, number, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, number, K>]: CombineOptional<T, number, K>[P] }> {
+    addInteger<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}, isRequired?: REQUIRED): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, number, K>]: Combine<T, number, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, number, K>]: CombineOptional<T, number, K>[P] }> {
         return this.addProperty(propertyName, SchemaBuilder.integerSchema(schema), isRequired)
     }
 
     /**
      * Add a number to the schema properties
      */
-    addBoolean<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, isRequired?: REQUIRED, schema: Pick<JSONSchema, JSONSchemaProperties> = {}): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, boolean, K>]: Combine<T, boolean, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, boolean, K>]: CombineOptional<T, boolean, K>[P] }> {
+    addBoolean<K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, schema: Pick<JSONSchema, JSONSchemaProperties> = {}, isRequired?: REQUIRED): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, boolean, K>]: Combine<T, boolean, K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, boolean, K>]: CombineOptional<T, boolean, K>[P] }> {
         return this.addProperty(propertyName, SchemaBuilder.booleanSchema(schema), isRequired)
     }
 
     /**
      * Add an array of objects to the schema properties
      */
-    addArray<U extends {}, K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, items: SchemaBuilder<U>, isRequired?: REQUIRED, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, U[], K>]: Combine<T, U[], K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, U[], K>]: CombineOptional<T, U[], K>[P] }> {
+    addArray<U extends {}, K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}, isRequired?: REQUIRED): REQUIRED extends true ? SchemaBuilder<{ [P in keyof Combine<T, U[], K>]: Combine<T, U[], K>[P] }> : SchemaBuilder<{ [P in keyof CombineOptional<T, U[], K>]: CombineOptional<T, U[], K>[P] }> {
         return this.addProperty(propertyName, SchemaBuilder.arraySchema(items, schema), isRequired)
     }
 
@@ -384,7 +384,7 @@ export class SchemaBuilder<T> {
      * Transform the given properties to make them alternatively an array of the initial type.
      * If the property is already an Array nothing happen.
      * 
-     * @param changedProperties properties that will have the alternative array type
+     * @param propertyNames properties that will have the alternative array type
      */
     transformPropertiesToArray<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<TransformPropertiesToArray<T, K>> {
         if (!this.isSimpleObjectSchema) {
@@ -398,6 +398,30 @@ export class SchemaBuilder<T> {
             if (propertySchema.type !== "array") {
                 this.schemaObject.properties[property] = {
                     oneOf: [propertySchema, { type: "array", items: propertySchema }]
+                }
+            }
+        }
+        return this as any
+    }
+
+    /**
+     * Unwrap the given array properties to make them alternatively the generic type of the array
+     * If the property is not an Array nothing happen.
+     * 
+     * @param propertyNames properties that will be unwrapped
+     */
+    unwrapArrayProperties<K extends keyof T>(propertyNames?: K[]): SchemaBuilder<UnwrapArrayProperties<T, K>> {
+        if (!this.isSimpleObjectSchema) {
+            throw new VError(`Schema Builder Error: 'unwrapArrayProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+        }
+        this.schemaObject.properties = this.schemaObject.properties || {}
+        propertyNames = propertyNames || Object.keys(this.schemaObject.properties) as any
+        for (let property of propertyNames) {
+            let propertySchema = this.schemaObject.properties[property];
+            // Transform the property if it's not an array
+            if (propertySchema.type === "array") {
+                this.schemaObject.properties[property] = {
+                    oneOf: [propertySchema.items, propertySchema]
                 }
             }
         }
