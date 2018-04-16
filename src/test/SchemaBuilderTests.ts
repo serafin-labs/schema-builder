@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import * as chai from "chai";
-import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE } from "../";
+import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE, keys } from "../";
 
 describe('Schema Builder', function () {
 
@@ -431,11 +431,12 @@ describe('Schema Builder', function () {
                 anArray: {
                     type: ARRAY_TYPE,
                     items: {
-                        type: STRING_TYPE
+                        type: STRING_TYPE,
+                        enum: keys(["a", "b", "c"])
                     }
                 }
             },
-            required: ["aBoolean" as "aBoolean", "anArray" as "anArray"],
+            required: keys(["aBoolean", "anArray"]),
             additionalProperties: false
         })
         expect(schemaBuilder).to.exist
@@ -444,7 +445,7 @@ describe('Schema Builder', function () {
             aSubObject: {
                 aSubProperty: 42
             },
-            anArray: []
+            anArray: ["a"]
         })).to.not.throw(),
             expect(() => schemaBuilder.validate({
                 aBoolean: true,

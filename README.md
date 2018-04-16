@@ -28,7 +28,7 @@ Let's create simple User and Task schemas.
 let taskSchema = SchemaBuilder.emptySchema()
     .addString("name")
     .addNumber("progress")
-    .addOptionalBoolean("isCompleted")
+    .addBoolean("isCompleted", {}, false)
 
 // Schema for the User
 let userSchema = SchemaBuilder.emptySchema()
@@ -37,8 +37,8 @@ let userSchema = SchemaBuilder.emptySchema()
     .addString("lastName")
     .addEnum("role", ["admin", "user"])
     .addString("email", { format: "email" })
-    .addStringArray("tags", { minItems: 1 })
-    .addOptionalInteger("age")
+    .addArray("tags", SchemaBuilder.stringSchema(), { minItems: 1 })
+    .addInteger("age", {}, false)
     .addArray("tasks", taskSchema)
 
 // References to generated interfaces
@@ -189,11 +189,13 @@ When you create an instance of ```SchemaBuilder```, you usually starts with ```S
 let mySchema = new SchemaBuilder<...>({...});
 ```
 
-However ```SchemaBuilder``` expect a schema without ```$ref```. If you want to initialize a schema with local or external references, you have to "dereferenced" it first using ```dereferencedSchema``` static method. It uses ```json-schema-ref-parser``` library to inline all references of your schema.
+SchemaBuilder ```SchemaBuilder``` expect a schema without ```$ref```. If you want to initialize a schema with local or external references, you have to "dereferenced" it first using ```dereferencedSchema``` static method. It uses ```json-schema-ref-parser``` library to inline all references of your schema.
+
+Note that in this situtation you will have to provide an explicite type for your schema.
 
 ### clone
 
-All the methods of ```SchemaBuilder``` may affect the json schema and the gneric type. When you need a new version of a schema, you have to clone the original schema first to ensure you don't cause any side effects.
+All the methods of ```SchemaBuilder``` may affect the json schema and the generic type. When you need a new version of a schema, you have to clone the original schema first to ensure you don't cause any side effects.
 
 ```typescript
 let originalSchema = SchemaBuilder.emptySchema()
@@ -204,11 +206,11 @@ let modifiedSchema = originalSchema.clone()
 
 ### allOf, anyOf, oneOf, not
 
-```SchemaBuilder``` contains static method to create ```allOf```, ```anyOf```, ```oneOf``` and ```not``` constructs.
+```SchemaBuilder``` contains static method to create ```allOf```, ```anyOf```, ```oneOf``` and ```not```.
 
 When you start using one of those in a ```SchemaBuilder```, most of the transformation methods won't work anymore. It's because they expect the schema to contains only ```properties```.
 
-### renameProperty and renameOptionalProperty
+### renameProperty
 
 ```renameProperty``` allows you to change the name of property without affecting its schema.
 
@@ -281,7 +283,7 @@ let schemaWithOtherProperties = schema.clone()
 
 ```typescript
 let schema2 = SchemaBuilder.emptySchema()
-    .addStringArray("prop2")
+    .addArray("prop2", SchemaBuilder.stringSchema())
     .addNumber("prop3")
 
 let schema = SchemaBuilder.emptySchema()
@@ -307,7 +309,7 @@ type T = {
 
 ```typescript
 let schema2 = SchemaBuilder.emptySchema()
-    .addStringArray("prop2")
+    .addArray("prop2", SchemaBuilder.stringSchema())
     .addNumber("prop3")
 
 let schema = SchemaBuilder.emptySchema()
@@ -332,14 +334,15 @@ type T = {
 
 ```typescript
 let schema = SchemaBuilder.emptySchema()
-    .addStringArray("prop1")
+    .addArray("prop1", SchemaBuilder.stringSchema())
     .addBoolean("prop2")
     .transformProperties(SchemaBuilder.stringSchema(), ["prop1"])
 ```
 
 ### transformPropertiesToArray
 
-```transformPropertiesToArray``` method allows you to transofrm existing properties and to add an array version of it. The json schema operator used is ```oneOf``` and the typescript type operator is ```|```.
+```transformPropertiesToArray``` method allows you to transofrm existing properties to add an array version of it. The json schema operator used is ```oneOf``` and the typescript type operator is ```|```.
+Properties that are already arrays are not affected.
 
 ```typescript
 let schema = SchemaBuilder.emptySchema()
@@ -348,9 +351,21 @@ let schema = SchemaBuilder.emptySchema()
     .transformPropertiesToArray(["prop1"])
 ```
 
+### unwrapArrayProperties
+
+```unwrapArrayProperties``` method allows you to transofrm existing array properties to add the generic type of the array to it. The json schema operator used is ```oneOf``` and the typescript type operator is ```|```.
+Properties that are not arrays are not affected.
+
+```typescript
+let schema = SchemaBuilder.emptySchema()
+    .addArray("prop1", SchemaBuilder.stringSchema())
+    .addBoolean("prop2")
+    .unwrapArrayProperties(["prop1"])
+```
+
 ### validate
 
-```validate``` and ```validateList``` methods allows you to easily run validation against your schema. Those two methods use ```Ajv``` library. It uses the following configuration :
+```validate``` and ```validateList``` methods allows you to easily run validation against your schema. Those two methods use ```Ajv``` library. Validation functions are cached automatically. It uses the following default configuration :
 
 ```typescript
 import { metaSchema } from "@serafin/open-api"
@@ -360,6 +375,77 @@ new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true, meta: me
 
 ```metaSchema``` is a subset of the current JSON Schema specification that corresponds to what Open Api 3 has decided to support. See the official Open Api 3 documentation for more details.
 
+You can override this configuration using the ```configureValidation``` method.
+
+You can also force the validation function to be cached right away ```schema.cacheValidationFunction()``` and/or ```this.cacheListValidationFunction()```
+
+## Experimental features
+
+```SchemaBuilder``` contains a ```fromJsonSchema``` method that has the ability to deduce the type from the schema parameter directly. The schema has to be provided in a litteral form and use string literals for ```type```, ```enum``` and ```required```.
+
+/!\ This feature is experimental and might still change a lot.
+
+For example:
+
+```typescript
+let schemaBuilder = SchemaBuilder.fromJsonSchema({
+    type: OBJECT_TYPE,
+    properties: {
+        aString: {
+            type: STRING_TYPE,
+            description: "this is a test"
+        },
+        aBoolean: {
+            type: BOOLEAN_TYPE,
+        },
+        anInteger: {
+            type: INTEGER_TYPE,
+            minimum: 0
+        },
+        aSubObject: {
+            type: OBJECT_TYPE,
+            properties: {
+                aSubProperty: {
+                    type: NUMBER_TYPE,
+                    maximum: 100
+                }
+            }
+        },
+        anArray: {
+            type: ARRAY_TYPE,
+            items: {
+                type: STRING_TYPE,
+                enum: keys(["a", "b", "c"])
+            }
+        }
+    },
+    required: keys(["aBoolean", "anArray"]),
+    additionalProperties: false
+})
+```
+
+Which gives you the following interface:
+
+```typescript
+type T = {
+    aBoolean: boolean;
+    anArray: JsonSchemaArray<{
+        type: "string";
+        enum: ("a" | "b" | "c")[];
+    }>;
+    aString?: string;
+    anInteger?: number;
+    aSubObject?: {
+        aSubProperty: number;
+    } & {
+        [k: string]: any;
+    };
+}
+```
+
+Only ```oneOf``` combination keyword is supported currently but has some limitations.
+
+If anyone is interested in the super challenge of typing ```allOf``` and ```anyOf```, please contact me :)
 
 ## What's next?
 
