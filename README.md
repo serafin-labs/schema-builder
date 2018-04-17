@@ -181,18 +181,6 @@ Since it's a Typescript library, intellisense and code comments provide already 
 
 This section will focus on advanced transformation methods and how to use them. Refer to the code for the rest.
 
-### dereferencedSchema
-
-When you create an instance of ```SchemaBuilder```, you usually starts with ```SchemaBuilder.emptySchema()```. But if you already have an existing json schema, you can pass it to the constructor directly :
-
-```typescript
-let mySchema = new SchemaBuilder<...>({...});
-```
-
-SchemaBuilder ```SchemaBuilder``` expect a schema without ```$ref```. If you want to initialize a schema with local or external references, you have to "dereferenced" it first using ```dereferencedSchema``` static method. It uses ```json-schema-ref-parser``` library to inline all references of your schema.
-
-Note that in this situtation you will have to provide an explicite type for your schema.
-
 ### clone
 
 All the methods of ```SchemaBuilder``` may affect the json schema and the generic type. When you need a new version of a schema, you have to clone the original schema first to ensure you don't cause any side effects.

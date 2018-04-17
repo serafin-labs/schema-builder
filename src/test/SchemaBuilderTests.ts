@@ -14,18 +14,6 @@ describe('Schema Builder', function () {
         expect(() => new SchemaBuilder({ "$ref": "aReference" })).to.throw()
     });
 
-    it('should dereferenced a schema', async function () {
-        let schemaBuilder = await SchemaBuilder.dereferencedSchema({
-            definitions: {
-                test: { type: "string" }
-            },
-            properties: {
-                a: { $ref: "#/definitions/test" }
-            }
-        })
-        expect(schemaBuilder.schema.properties.a.type).to.eqls("string")
-    });
-
     it('should create oneOf, allOf, anyOf and not schemas', function () {
         let schemaBuilder = SchemaBuilder.oneOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema())
         expect(schemaBuilder.schema.oneOf.length).to.eqls(2)

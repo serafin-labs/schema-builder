@@ -1,5 +1,4 @@
 import * as _ from "lodash"
-import * as $RefParser from "json-schema-ref-parser"
 import * as Ajv from 'ajv'
 import * as VError from 'verror'
 
@@ -20,7 +19,7 @@ export class SchemaBuilder<T> {
 
     /**
      * Initialize a new SchemaBuilder instance.
-     * /!\ schemaObject must not contain references. If you have references, use dereferencedSchema method instead. 
+     * /!\ schemaObject must not contain references. If you have references, use something like json-schema-ref-parser library first. 
      */
     constructor(protected schemaObject: JSONSchema) {
         this.schemaObject = schemaObject;
@@ -38,14 +37,6 @@ export class SchemaBuilder<T> {
      */
     static fromJsonSchema<S extends JSONSchema>(schema: S): SchemaBuilder<{ [P in keyof JsonSchemaType<S>]: JsonSchemaType<S>[P] }> {
         return new SchemaBuilder<any>(schema)
-    }
-
-    /**
-     * Initialize a dereferenced version of the given schema. All references are resolved and included inline.
-     */
-    static async dereferencedSchema<T>(schema: JSONSchema | string) {
-        let dereferencedSchema = await ($RefParser as any).dereference(schema);
-        return new SchemaBuilder<T>(dereferencedSchema)
     }
 
     /**

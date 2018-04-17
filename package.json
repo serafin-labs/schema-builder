@@ -22,7 +22,6 @@
     },
     "dependencies": {
         "ajv": "^6.0.1",
-        "json-schema-ref-parser": "^4.0.4",
         "lodash": "^4.17.4",
         "verror": "^1.10.0"
     },
