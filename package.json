@@ -51,6 +51,7 @@
         "debug": "node_modules/.bin/mocha -R spec ./lib/test.js --inspect-brk=[::]:9229",
         "predev": "npm install",
         "dev": "NODE_ENV=development node_modules/.bin/webpack --mode development",
-        "build": "NODE_ENV=production webpack --mode production"
+        "build": "NODE_ENV=production webpack --mode production",
+        "prepublishOnly": "npm install && npm run-script build && npm test"
     }
 }
