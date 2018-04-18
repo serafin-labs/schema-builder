@@ -33,13 +33,25 @@
         "@types/lodash": "^4.14.106",
         "@types/mocha": "^2.2.45",
         "@types/node": "^8.10.0",
+        "@types/verror": "^1.10.3",
         "chai": "^4.1.2",
-        "gulp": "^3.9.1",
+        "clean-webpack-plugin": "^0.1.19",
+        "istanbul": "^0.4.5",
         "mocha": "^4.1.0",
-        "typescript": "^2.8.1"
+        "nodemon": "^1.17.3",
+        "remap-istanbul": "^0.11.0",
+        "ts-loader": "^4.2.0",
+        "typescript": "^2.8.1",
+        "webpack": "^4.6.0",
+        "webpack-cli": "^2.0.14",
+        "webpack-node-externals": "^1.7.2",
+        "webpack-shell-plugin": "^0.5.0"
     },
     "scripts": {
-        "dev": "npm install && gulp build && gulp dev",
-        "test": "mocha lib/**/*Tests.js"
+        "test": "node_modules/.bin/istanbul cover --dir ./lib/coverage/ node_modules/.bin/_mocha -- --inspect-brk -R spec ./lib/test.js && node_modules/.bin/remap-istanbul -i ./lib/coverage/coverage.json -e lib/webpack/bootstrap -t lcovonly -o ./lib/coverage/lcov.info && node_modules/.bin/remap-istanbul -i ./lib/coverage/coverage.json -e lib/webpack/bootstrap -t html -o ./lib/coverage/lcov-report",
+        "debug": "node_modules/.bin/mocha -R spec ./lib/test.js --inspect-brk=[::]:9229",
+        "predev": "npm install",
+        "dev": "NODE_ENV=development node_modules/.bin/webpack --mode development",
+        "build": "NODE_ENV=production webpack --mode production"
     }
 }

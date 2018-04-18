@@ -23,7 +23,6 @@
             "port": 9229,
             "timeout": 30000,
             "address": "127.0.0.1",
-            "restart": true,
             "sourceMaps": true,
             "smartStep": true,
             "skipFiles": [
@@ -35,7 +34,8 @@
                 "${workspaceRoot}/lib/**"
             ],
             "localRoot": "${workspaceRoot}",
-            "remoteRoot": "/srv"
+            "remoteRoot": "/srv",
+            "stopOnEntry": false
         }
     ]
 }

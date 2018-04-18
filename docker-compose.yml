@@ -7,4 +7,3 @@ services:
       - "9229:9229"
     volumes:
       - .:/srv
-      - ~/.ssh/id_rsa:/home/node/.ssh/id_rsa:ro
