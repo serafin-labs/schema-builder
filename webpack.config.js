@@ -25,7 +25,7 @@ var configuration = {
     module: {
         rules: [
             {
-                test: /\.ts$/,
+                test: /\.tsx?$/,
                 use: 'ts-loader',
                 exclude: /node_modules/
             }
@@ -35,7 +35,7 @@ var configuration = {
         minimize: false
     },
     resolve: {
-        extensions: ['.tsx', '.ts', '.js']
+        extensions: [".webpack.js", ".web.js", ".ts", ".tsx", ".js"]
     },
     output: {
         filename: '[name].js',

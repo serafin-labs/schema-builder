@@ -5,12 +5,12 @@
 /.gitignore
 /.npmignore
 /.history
-.DS_Store
 /node_modules
 /npm-debug.log
+/src
+.DS_Store
+webpack.config.js
+tsconfig.json
 docker-compose.*
-/gulpfile.js
+gulpfile.js
 /lib/test
-/lib/coverage
-/src/test
-/src/
