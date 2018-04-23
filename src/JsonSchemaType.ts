@@ -56,7 +56,7 @@ export type JsonSchemaProperties<T, R> =
     R extends Array<infer KR> ?
     [KR] extends [keyof T] ? { [P in KR]: JsonSchemaArray<T[P]>[number] } & { [P in Exclude<keyof T, KR>]?: JsonSchemaArray<T[P]>[number] } :
     never /* A required property does not exist */ :
-    { [P in keyof T]: JsonSchemaType<T[P]> } /* No required properties */;
+    { [P in keyof T]?: JsonSchemaType<T[P]> } /* No required properties */;
 
 /**
  * Type of a Jdone schema 'array' object
