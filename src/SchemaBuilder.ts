@@ -503,11 +503,12 @@ export class SchemaBuilder<T> {
                     }
                 } else {
                     this.schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
+                    if (this.schemaObject.required && this.schemaObject.required.indexOf(propertyKey) !== -1) {
+                        this.schemaObject.required = this.schemaObject.required.filter(r => r !== propertyKey)
+                    }
                     if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
                         this.schemaObject.required = this.schemaObject.required || [];
                         this.schemaObject.required.push(propertyKey)
-                    } else if (this.schemaObject.required) {
-                        this.schemaObject.required = this.schemaObject.required.filter(r => r !== propertyKey)
                     }
                 }
             }

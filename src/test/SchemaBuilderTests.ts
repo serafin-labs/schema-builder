@@ -290,16 +290,18 @@ describe('Schema Builder', function () {
     })
 
     it('should overwrite properties', function () {
-        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v")).addBoolean("b").addBoolean("s2", {}, false)
-        let schemaBuilder2 = SchemaBuilder.emptySchema().addBoolean("s", {}, false).addString("s2").overwriteProperties(schemaBuilder1)
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v")).addBoolean("b").addBoolean("s2", {}, false).addBoolean("s3", {})
+        let schemaBuilder2 = SchemaBuilder.emptySchema().addBoolean("s", {}, false).addString("s2").addString("s3").overwriteProperties(schemaBuilder1)
         expect(schemaBuilder2).to.exist
         expect(() => schemaBuilder2.validate({
             s: { v: "test" },
-            b: true
+            b: true,
+            s3: true
         })).to.not.throw()
         expect(() => schemaBuilder2.validate({
             s: false,
-            b: true
+            b: true,
+            s3: true
         } as any)).to.throw()
     })
 
