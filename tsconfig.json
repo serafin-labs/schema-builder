@@ -5,6 +5,6 @@
         "declarationDir": ".",
         "module": "esnext",
         "moduleResolution": "node",
-        "target": "esnext"
+        "target": "es5",
     }
 }
