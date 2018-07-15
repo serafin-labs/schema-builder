@@ -7,7 +7,6 @@
 /.history
 /node_modules
 /npm-debug.log
-/src
 .DS_Store
 webpack.config.js
 tsconfig.json
