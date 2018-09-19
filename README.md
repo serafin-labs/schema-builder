@@ -10,10 +10,10 @@ npm i @serafin/schema-builder
 
 ## Why Schema Builder?
 
-JSON schema is the base of Open API documents so it's really important for Serafin framework.
+JSON schema is the base of Open API so it's really important for Serafin framework.
 JSON Schema is powerfull but it is also verbose. 
 
-On top of the JSON schema, you also have to create the Typescript interface that it represents. If you take in account other schemas and interfaces you have to define (one for the post body, one for the patch body, one for get query parameters, etc.), it starts to be problematic.
+On top of a JSON schema, you also have to create the Typescript interface that it represents. If you take in account other schemas and interfaces you have to define (one for the post body, one for the patch body, one for get query parameters, etc.), it starts to be problematic.
 
 Schema builder is here to save you from all this tedious work!
 
@@ -163,7 +163,7 @@ type UserPatch = {
 }
 ```
 
-We can now use the ```validate``` method to validate data against our schema. The validation use ```Ajv``` and a custom meta schema that match Open Api 3 specifications.
+We can now use the ```validate``` method to validate data against our schema. The validation use ```Ajv``` with Json Schema draft #7.
 
 ```typescript
 userPatchSchema.validate({
@@ -177,13 +177,13 @@ There's more! This was a simple example. This library provides also a lot of tra
 
 ## Usage
 
-Since it's a Typescript library, intellisense and code comments provide already a good description of the Api.
+Since it's a Typescript library, intellisense and code comments provide already a good description of the methods.
 
 This section will focus on advanced transformation methods and how to use them. Refer to the code for the rest.
 
 ### clone
 
-All the methods of ```SchemaBuilder``` may affect the json schema and the generic type. When you need a new version of a schema, you have to clone the original schema first to ensure you don't cause any side effects.
+All the methods of ```SchemaBuilder``` may affect the json schema and its generic type. When you need a new version of a schema, you have to clone the original schema first to ensure you don't cause any side effects.
 
 ```typescript
 let originalSchema = SchemaBuilder.emptySchema()
@@ -367,11 +367,9 @@ You can override this configuration using the ```configureValidation``` method.
 
 You can also force the validation function to be cached right away ```schema.cacheValidationFunction()``` and/or ```this.cacheListValidationFunction()```
 
-## Experimental features
+### Literal Json Schema
 
-```SchemaBuilder``` contains a ```fromJsonSchema``` method that has the ability to deduce the type from the schema parameter directly. The schema has to be provided in a litteral form and use string literals for ```type```, ```enum``` and ```required```.
-
-/!\ This feature is experimental and might still change a lot.
+```SchemaBuilder``` contains a ```fromJsonSchema``` method that has the ability to deduce the type from the schema parameter directly. The schema has to be provided in a litteral form and use string literals for ```type```, ```enum```, ```const``` and ```required```.
 
 For example:
 
@@ -430,10 +428,6 @@ type T = {
     };
 }
 ```
-
-Only ```oneOf``` combination keyword is supported currently but has some limitations.
-
-If anyone is interested in the super challenge of typing ```allOf``` and ```anyOf```, please contact me :)
 
 ## What's next?
 

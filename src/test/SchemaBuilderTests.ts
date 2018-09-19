@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import * as chai from "chai";
 import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE, keys } from "../";
+import { NULL_TYPE } from "../JsonSchemaType";
 
 describe('Schema Builder', function () {
 
@@ -113,10 +114,21 @@ describe('Schema Builder', function () {
         let innerSchema = SchemaBuilder.emptySchema().addString("ss")
             .addBoolean("sb");
         let schemaBuilder = SchemaBuilder.emptySchema()
-            .addProperty("s", innerSchema)
             .addBoolean("b")
+            .addProperty("s", innerSchema)
             .toDeepOptionals();
         expect(() => schemaBuilder.validate({ s: { ss: "test" } })).to.not.throw()
+    });
+
+    it('should add nullable properties', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addEnum("s", ["a", "b", "c"], {}, false, true).addArray("a", SchemaBuilder.stringSchema(), {}, false, true);
+        expect(() => schemaBuilder.validate({ s: null, a: null })).to.not.throw()
+    });
+
+    it('should convert to nullable', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addEnum("s", ["a", "b", "c"], {}, false).addArray("a", SchemaBuilder.stringSchema(), {}, false);
+        expect(() => schemaBuilder.validate({ s: null, a: null })).to.throw()
+        expect(() => schemaBuilder.clone().toNullable().validate({ s: null, a: null })).to.not.throw()
     });
 
     it('should rename a property', function () {
@@ -398,9 +410,38 @@ describe('Schema Builder', function () {
         let schemaBuilder = SchemaBuilder.fromJsonSchema({
             type: OBJECT_TYPE,
             properties: {
+                anEmptySchema: {},
+                aMultiTypeSchema: {
+                    type: [INTEGER_TYPE, STRING_TYPE, OBJECT_TYPE, ARRAY_TYPE],
+                    description: "this is a test",
+                    items: {
+                        type: BOOLEAN_TYPE
+                    },
+                    additionalProperties: false,
+                    properties: {
+                        ok: {
+                            type: BOOLEAN_TYPE,
+                        }
+                    }
+
+                },
                 aString: {
                     type: STRING_TYPE,
-                    description: "this is a test"
+                    minLength: 1
+                },
+                aConstString: {
+                    type: STRING_TYPE,
+                    const: "constant" as "constant"
+                },
+                aSpecialEnum: {
+                    type: [STRING_TYPE, NUMBER_TYPE],
+                    enum: keys(["A", "B", 1, 2])
+                },
+                aNullableString: {
+                    type: [STRING_TYPE, NULL_TYPE],
+                },
+                aNullProperty: {
+                    type: NULL_TYPE
                 },
                 aBoolean: {
                     type: BOOLEAN_TYPE,
@@ -411,12 +452,28 @@ describe('Schema Builder', function () {
                 },
                 aSubObject: {
                     type: OBJECT_TYPE,
+                    additionalProperties: {
+                        type: NUMBER_TYPE,
+                    },
                     properties: {
                         aSubProperty: {
                             type: NUMBER_TYPE,
                             maximum: 100
                         }
-                    }
+                    },
+                },
+                aOneOfObject: {
+                    oneOf: [{
+                        type: INTEGER_TYPE,
+                    }, {
+                        type: BOOLEAN_TYPE,
+                    }, {
+                        type: OBJECT_TYPE,
+                        additionalProperties: false,
+                        properties: {
+                            test: { type: STRING_TYPE }
+                        }
+                    }]
                 },
                 anArray: {
                     type: ARRAY_TYPE,
@@ -424,6 +481,14 @@ describe('Schema Builder', function () {
                         type: STRING_TYPE,
                         enum: keys(["a", "b", "c"])
                     }
+                },
+                aMultiArray: {
+                    type: ARRAY_TYPE,
+                    items: [{
+                        type: STRING_TYPE
+                    }, {
+                        type: BOOLEAN_TYPE
+                    }]
                 }
             },
             required: keys(["aBoolean", "anArray"]),
@@ -435,12 +500,20 @@ describe('Schema Builder', function () {
             aSubObject: {
                 aSubProperty: 42
             },
-            anArray: ["a"]
-        })).to.not.throw(),
-            expect(() => schemaBuilder.validate({
-                aBoolean: true,
-                anInteger: -1
-            } as any)).to.throw()
+            anArray: ["a"],
+            aNullableString: null
+        })).to.not.throw();
+
+        expect(() => schemaBuilder.validate({
+            aBoolean: true,
+            anInteger: -1
+        } as any)).to.throw()
+
+        expect(() => schemaBuilder.validate({
+            aBoolean: true,
+            anArray: ["a"],
+            aString: null
+        } as any)).to.throw()
     })
 
 });

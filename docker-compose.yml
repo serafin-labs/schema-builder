@@ -1,7 +1,7 @@
 version: "2"
 services:
   app:
-    image: serafinlabs/nodejs:8-dev
+    image: serafinlabs/nodejs:10-dev
     command: "npm run-script dev"
     ports:
       - "9229:9229"
