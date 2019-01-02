@@ -2,6 +2,7 @@ import { expect } from "chai";
 import * as chai from "chai";
 import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE, keys } from "../";
 import { NULL_TYPE } from "../JsonSchemaType";
+import { JSONSchema } from "../JsonSchema";
 
 describe('Schema Builder', function () {
 
@@ -88,7 +89,9 @@ describe('Schema Builder', function () {
     });
 
     it('should set optional properties', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addBoolean("b").addBoolean("c", {}, false).setOptionalProperties(["s"]);
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s", { default: "test" }).addBoolean("b", { default: false }).addBoolean("c", {}, false).setOptionalProperties(["s"]);
+        expect((schemaBuilder.schema.properties.s as JSONSchema).default).to.not.exist
+        expect((schemaBuilder.schema.properties.b as JSONSchema).default).to.exist
         expect(() => schemaBuilder.validate({
             b: true
         })).to.not.throw()
@@ -106,17 +109,20 @@ describe('Schema Builder', function () {
     });
 
     it('should convert to optionals', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addBoolean("b").toOptionals();
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s", { default: "test" }).addBoolean("b").toOptionals();
+        expect((schemaBuilder.schema.properties.s as JSONSchema).default).to.not.exist
         expect(() => schemaBuilder.validate({})).to.not.throw()
     });
 
     it('should convert to deep optionals', function () {
-        let innerSchema = SchemaBuilder.emptySchema().addString("ss")
+        let innerSchema = SchemaBuilder.emptySchema().addString("ss", { default: "test" })
             .addBoolean("sb");
         let schemaBuilder = SchemaBuilder.emptySchema()
-            .addBoolean("b")
+            .addBoolean("b", { default: true })
             .addProperty("s", innerSchema)
             .toDeepOptionals();
+        expect((schemaBuilder.schema.properties.b as JSONSchema).default).to.not.exist
+        expect(((schemaBuilder.schema.properties.s as JSONSchema).properties.ss as JSONSchema).default).to.not.exist
         expect(() => schemaBuilder.validate({ s: { ss: "test" } })).to.not.throw()
     });
 

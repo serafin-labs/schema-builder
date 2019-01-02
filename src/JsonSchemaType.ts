@@ -25,7 +25,7 @@ export type JsonSchemaSimpleTypes<TYPE> =
 /**
  * Types for a oneOf list
  */
-export type JsonSchemaOneOfType<T> = { [P in keyof T]: T[P] extends { type: string } | { oneOf: any } | { allOf: any } | { anyOf: any } | { not: any } ? JsonSchemaType<T[P]> : never }[keyof T];
+export type JsonSchemaOneOfType<T> = { [P in keyof T]: JsonSchemaType<T[P]> }[keyof T];
 
 /**
  * Type of a json object

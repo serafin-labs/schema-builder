@@ -142,13 +142,27 @@ export class SchemaBuilder<T> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
+        // determine the new set of required properties
         let required = [];
         let existingRequired = this.schemaObject.required || []
-        for (let property of existingRequired) {
-            if ((properties as string[]).indexOf(property) === -1) {
-                required.push(property)
+        let optionalProperties = [] // properties that are changing from required to optional
+        for (let existingRequiredProperty of existingRequired) {
+            if ((properties as string[]).indexOf(existingRequiredProperty) === -1) {
+                required.push(existingRequiredProperty)
+            } else {
+                optionalProperties.push(existingRequiredProperty)
             }
         }
+
+        // clear default values for optional properties
+        for (let optionalProperty of optionalProperties) {
+            let property = this.schemaObject.properties[optionalProperty]
+            if (property && typeof property !== "boolean") {
+                delete property.default
+            }
+        }
+
+        // delete required array if empty
         if (required.length === 0) {
             delete this.schemaObject.required
         } else {
@@ -174,20 +188,29 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Make all properties optionals
+     * Make all properties optionals and remove their default values
      */
     toOptionals(): SchemaBuilder<{
         [P in keyof T]?: T[P];
     }> {
         delete this.schemaObject.required
+        // remove default values for optional properties
+        for (let property in this.schemaObject.properties) {
+            delete (this.schemaObject.properties[property] as JSONSchema).default
+        }
         return this as any
     }
 
     /**
      * Make all properties and subproperties optionals
+     * Remove all default values
      */
     toDeepOptionals(): SchemaBuilder<DeepPartial<T>> {
-        throughJsonSchema(this.schemaObject, s => delete s.required)
+        throughJsonSchema(this.schemaObject, s => {
+            delete s.required
+            // optional properties can't have default values
+            delete s.default
+        })
         return this as any
     }
 

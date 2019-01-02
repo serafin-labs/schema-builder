@@ -15,7 +15,7 @@ export type Overwrite<T, U> = Omit<T, Extract<keyof T, keyof U>> & U;
 /**
  * Like `T & U`, but where there are overlapping properties use the
  * type from T[P] | U[P].
- * For overloapping properties, optional info is lost. The property becomes mandatory.
+ * For overlapping properties, optional info is lost. The property becomes mandatory.
  */
 export type Merge<T, U> = Omit<T, Extract<keyof T, keyof U>> & Omit<U, Extract<keyof U, keyof T>> & { [P in keyof (T | U)]: (T[P] | U[P]) };
 
