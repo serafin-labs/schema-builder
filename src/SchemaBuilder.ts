@@ -620,7 +620,7 @@ export class SchemaBuilder<T> {
         let valid = this.validationFunction(o);
         // check if an error needs to be thrown
         if (!valid) {
-            throw validationError(this.ajv.errorsText(this.validationFunction.errors))
+            throw validationError(this.ajv.errorsText(this.validationFunction.errors), this.validationFunction.errors)
         }
     }
     protected ajv
@@ -636,7 +636,7 @@ export class SchemaBuilder<T> {
         let valid = this.listValidationFunction(list);
         // check if an error needs to be thrown
         if (!valid) {
-            throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors))
+            throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors), this.validationFunction.errors)
         }
     }
     protected ajvList
@@ -646,13 +646,13 @@ export class SchemaBuilder<T> {
      * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
      * The default validation config is { coerceTypes: true, removeAdditional: true, useDefaults: true }
      */
-    configureValidation(config: { coerceTypes?: boolean, removeAdditional?: boolean, useDefaults?: boolean }) {
+    configureValidation(config: { coerceTypes?: boolean, removeAdditional?: boolean, useDefaults?: boolean, jsonPointers?: true }) {
         for (let configParam in config) {
             this.validationConfig[configParam] = config[configParam]
         }
         this.clearCache()
     }
-    protected validationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true };
+    protected validationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true, jsonPointers: true };
     protected clearCache() {
         delete this.ajvList
         delete this.listValidationFunction
@@ -691,9 +691,12 @@ export class SchemaBuilder<T> {
     readonly T?: T
 }
 
-function validationError(ajvErrorsText) {
+function validationError(ajvErrorsText, errorsDetails) {
     let opt: any = {
-        name: "SerafinSchemaValidationError"
+        name: "SerafinSchemaValidationError",
+        info: {
+            ajvErrors: errorsDetails
+        }
     };
     return new VError(opt, `Invalid parameters: ${ajvErrorsText}`);
 }
