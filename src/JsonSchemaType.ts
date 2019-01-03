@@ -23,9 +23,19 @@ export type JsonSchemaSimpleTypes<TYPE> =
     never;
 
 /**
- * Types for a oneOf list
+ * Extract the type of an array in an object type { t: T }
  */
-export type JsonSchemaOneOfType<T> = { [P in keyof T]: T[P] extends { type: string } | { oneOf: any } | { allOf: any } | { anyOf: any } | { not: any } ? JsonSchemaType<T[P]> : never }[keyof T];
+export type ArrayToTypeObject<T> = T extends Array<infer T> ? { t: T } : never
+
+/**
+ * Transform all properties of a type T to JsonSchemaType and finally unwrap those properties
+ */
+export type UnwrapPropsToJsonSchemaType<T> = { [P in keyof T]: JsonSchemaType<T[P]> }[keyof T]
+
+/**
+ * Type for a oneOf list, anyOf list, items list
+ */
+export type ArrayOfJsonSchemasType<T> = UnwrapPropsToJsonSchemaType<ArrayToTypeObject<T>>;
 
 /**
  * Type of a json object
@@ -63,16 +73,17 @@ export interface JsonSchemaAdditionalProperties<T> {
 export type JsonSchemaPrimitiveType<TYPE, ITEM, PROPERTIES, REQUIRED, AP> =
     TYPE extends "integer" | "number" | "boolean" | "null" | "string" ? JsonSchemaSimpleTypes<TYPE> :
     TYPE extends "object" ? JsonSchemaObjectType<PROPERTIES, REQUIRED, AP> :
-    TYPE extends "array" ? ITEM extends Array<infer ITEMS> ? JsonSchemaArray<ITEMS> : JsonSchemaArray<ITEM> : never
+    TYPE extends "array" ? ITEM extends Array<any> ? ArrayOfJsonSchemasType<ITEM>[] : JsonSchemaArray<ITEM> : never /* If ITEM is an array we can use the same mechanism as for oneOf, if ITEM is not an array we are forced to use an interface to avoid circular reference */
 
 /**
  * Deduce the type that represents a JSON Schema from the Schema itself.
  * allOf is not supported and will resolve to any
  */
 export type JsonSchemaType<T> =
-    T extends { type?: infer TYPE, oneOf?: infer ONE_OF, anyOf?: infer ANY_OF, items?: infer ITEM, properties?: infer PROPERTIES, required?: infer REQUIRED, additionalProperties?: infer AP, enum?: infer ENUM, const?: infer CONST } ?
-    ONE_OF extends any[] ? JsonSchemaOneOfType<ONE_OF> :
-    ANY_OF extends any[] ? JsonSchemaOneOfType<ANY_OF> :
+    T extends { type?: infer TYPE, oneOf?: infer ONE_OF, anyOf?: infer ANY_OF, allOf?: infer ALL_OF, items?: infer ITEM, properties?: infer PROPERTIES, required?: infer REQUIRED, additionalProperties?: infer AP, enum?: infer ENUM, const?: infer CONST } ?
+    ONE_OF extends any[] ? ArrayOfJsonSchemasType<ONE_OF> :
+    ANY_OF extends any[] ? ArrayOfJsonSchemasType<ANY_OF> :
+    ALL_OF extends any[] ? any :
     ENUM extends Array<infer ENUM_VALUE> ? ENUM_VALUE :
     {} extends CONST ?
     TYPE extends string ? JsonSchemaPrimitiveType<TYPE, ITEM, PROPERTIES, REQUIRED, AP> :
