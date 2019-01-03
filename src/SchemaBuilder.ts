@@ -95,7 +95,7 @@ export class SchemaBuilder<T> {
      */
     static arraySchema<U>(items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}, nullable?: boolean) {
         (schema as JSONSchema).type = nullable ? ["array", "null"] : "array";
-        (schema as JSONSchema).items = items.schemaObject;
+        (schema as JSONSchema).items = [items.schemaObject];
         return new SchemaBuilder<U[]>(schema)
     }
 
@@ -441,7 +441,7 @@ export class SchemaBuilder<T> {
             // Transform the property if it's not an array
             if ((propertySchema as JSONSchema).type !== "array") {
                 this.schemaObject.properties[property as string] = {
-                    oneOf: [propertySchema, { type: "array", items: propertySchema }]
+                    oneOf: [propertySchema, { type: "array", items: [propertySchema] }]
                 }
             }
         }
@@ -464,8 +464,19 @@ export class SchemaBuilder<T> {
             let propertySchema = this.schemaObject.properties[property as string];
             // Transform the property if it's an array
             if ((propertySchema as JSONSchema).type === "array") {
+                let items = (propertySchema as JSONSchema).items
+                let itemsSchema: JSONSchema
+                if (Array.isArray(items)) {
+                    if (items.length === 1) {
+                        itemsSchema = items[0] as JSONSchema
+                    } else {
+                        itemsSchema = { oneOf: items }
+                    }
+                } else {
+                    itemsSchema = items as JSONSchema
+                }
                 this.schemaObject.properties[property as string] = {
-                    oneOf: [(propertySchema as JSONSchema).items as JSONSchema, propertySchema]
+                    oneOf: [itemsSchema, propertySchema]
                 }
             }
         }
@@ -603,9 +614,9 @@ export class SchemaBuilder<T> {
      * @property schema
      */
     clone(schema: Pick<JSONSchema, JSONSchemaObjectProperties> = {}): this {
-        let schemaCopy = _.cloneDeep(this.schemaObject)
+        let schemaCopy: any = _.cloneDeep(this.schemaObject)
         for (let propertyName in schema) {
-            schemaCopy[propertyName] = schema[propertyName]
+            schemaCopy[propertyName] = (schema as any)[propertyName]
         }
         return new SchemaBuilder(schemaCopy) as any
     }
@@ -623,8 +634,8 @@ export class SchemaBuilder<T> {
             throw validationError(this.ajv.errorsText(this.validationFunction.errors), this.validationFunction.errors)
         }
     }
-    protected ajv
-    protected validationFunction;
+    protected ajv: any
+    protected validationFunction: any;
 
     /**
      * Validate the given list of object against the schema. If any object is invalid, an error is thrown with the appropriate details.
@@ -639,8 +650,8 @@ export class SchemaBuilder<T> {
             throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors), this.validationFunction.errors)
         }
     }
-    protected ajvList
-    protected listValidationFunction;
+    protected ajvList: any
+    protected listValidationFunction: any;
 
     /**
      * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
@@ -648,7 +659,7 @@ export class SchemaBuilder<T> {
      */
     configureValidation(config: { coerceTypes?: boolean, removeAdditional?: boolean, useDefaults?: boolean, jsonPointers?: true }) {
         for (let configParam in config) {
-            this.validationConfig[configParam] = config[configParam]
+            (this.validationConfig as any)[configParam] = (config as any)[configParam]
         }
         this.clearCache()
     }
@@ -691,7 +702,7 @@ export class SchemaBuilder<T> {
     readonly T?: T
 }
 
-function validationError(ajvErrorsText, errorsDetails) {
+function validationError(ajvErrorsText: string, errorsDetails: any) {
     let opt: any = {
         name: "SerafinSchemaValidationError",
         info: {

@@ -239,18 +239,18 @@ describe('Schema Builder', function () {
         let schemaBuilder = SchemaBuilder.emptySchema().addString("s", {}, false).addArray("a", SchemaBuilder.booleanSchema()).unwrapArrayProperties(["a"])
         expect(schemaBuilder).to.exist
         expect(() => schemaBuilder.validate({
-            a: [true]
+            a: true
         })).to.not.throw()
         expect(() => schemaBuilder.validate({
-            s: ["test"]
+            s: "test"
         } as any)).to.throw()
         let schemaBuilder2 = SchemaBuilder.emptySchema().addString("s", {}, false).addArray("a", SchemaBuilder.booleanSchema()).unwrapArrayProperties()
         expect(schemaBuilder2).to.exist
         expect(() => schemaBuilder2.validate({
-            a: [true]
+            a: true
         })).to.not.throw()
         expect(() => schemaBuilder2.validate({
-            s: ["test"]
+            s: "test"
         } as any)).to.throw()
     })
 
