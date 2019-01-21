@@ -657,13 +657,11 @@ export class SchemaBuilder<T> {
      * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
      * The default validation config is { coerceTypes: true, removeAdditional: true, useDefaults: true }
      */
-    configureValidation(config: { coerceTypes?: boolean, removeAdditional?: boolean, useDefaults?: boolean, jsonPointers?: true }) {
-        for (let configParam in config) {
-            (this.validationConfig as any)[configParam] = (config as any)[configParam]
-        }
+    configureValidation(config: { coerceTypes?: boolean, removeAdditional?: boolean, useDefaults?: boolean, allErrors?: boolean }) {
+        this.validationConfig = { ...this.validationConfig, ...config }
         this.clearCache()
     }
-    protected validationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true, jsonPointers: true };
+    protected validationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true };
     protected clearCache() {
         delete this.ajvList
         delete this.listValidationFunction
@@ -677,7 +675,7 @@ export class SchemaBuilder<T> {
     cacheValidationFunction() {
         // prepare validation function
         if (!this.validationFunction) {
-            this.ajv = new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true });
+            this.ajv = new Ajv({ ...this.validationConfig });
             this.validationFunction = this.ajv.compile(this.schemaObject);
         }
     }
@@ -687,7 +685,7 @@ export class SchemaBuilder<T> {
     cacheListValidationFunction() {
         // prepare validation function
         if (!this.listValidationFunction) {
-            this.ajvList = new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true });
+            this.ajvList = new Ajv({ ...this.validationConfig });
             this.ajvList.addSchema(this.schemaObject, "schema");
             this.listValidationFunction = this.ajvList.compile({ type: "array", items: { $ref: "schema" }, minItems: 1 });
         }
