@@ -647,7 +647,7 @@ export class SchemaBuilder<T> {
         let valid = this.listValidationFunction(list);
         // check if an error needs to be thrown
         if (!valid) {
-            throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors), this.validationFunction.errors)
+            throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors), this.listValidationFunction.errors)
         }
     }
     protected ajvList: any
