@@ -68,12 +68,39 @@ export interface JsonSchemaAdditionalProperties<T> {
 }
 
 /**
+ * Type for json schema primitive types but without array (see JsonSchemaTypeWithoutArray)
+ */
+export type JsonSchemaPrimitiveTypeWithoutArray<TYPE, PROPERTIES, REQUIRED, AP> =
+    TYPE extends "integer" | "number" | "boolean" | "null" | "string" ? JsonSchemaSimpleTypes<TYPE> :
+    TYPE extends "object" ? JsonSchemaObjectType<PROPERTIES, REQUIRED, AP> :
+    never
+
+/**
  * Type for json schema primitive types
  */
 export type JsonSchemaPrimitiveType<TYPE, ITEM, PROPERTIES, REQUIRED, AP> =
     TYPE extends "integer" | "number" | "boolean" | "null" | "string" ? JsonSchemaSimpleTypes<TYPE> :
     TYPE extends "object" ? JsonSchemaObjectType<PROPERTIES, REQUIRED, AP> :
-    TYPE extends "array" ? ITEM extends Array<any> ? ArrayOfJsonSchemasType<ITEM>[] : JsonSchemaArray<ITEM> : never /* If ITEM is an array we can use the same mechanism as for oneOf, if ITEM is not an array we are forced to use an interface to avoid circular reference */
+    TYPE extends "array" ? ITEM extends Array<any> ? ArrayOfJsonSchemasType<ITEM>[] :
+    ITEM extends { type: "array" } ? JsonSchemaArray<ITEM> :
+    JsonSchemaTypeWithoutArray<ITEM>[] :
+    never
+
+/**
+ * Same thing JsonSchemaType but without taking type: "array" into account. This is a workaround to avoid using JsonSchemaArray interface as much as possible. It makes the type more readable.
+ */
+export type JsonSchemaTypeWithoutArray<T> =
+    T extends { type?: infer TYPE, oneOf?: infer ONE_OF, anyOf?: infer ANY_OF, allOf?: infer ALL_OF, properties?: infer PROPERTIES, required?: infer REQUIRED, additionalProperties?: infer AP, enum?: infer ENUM, const?: infer CONST } ?
+    ONE_OF extends any[] ? ArrayOfJsonSchemasType<ONE_OF> :
+    ANY_OF extends any[] ? ArrayOfJsonSchemasType<ANY_OF> :
+    ALL_OF extends any[] ? any :
+    ENUM extends Array<infer ENUM_VALUE> ? ENUM_VALUE :
+    {} extends CONST ?
+    TYPE extends string ? JsonSchemaPrimitiveTypeWithoutArray<TYPE, PROPERTIES, REQUIRED, AP> :
+    TYPE extends Array<infer TYPES> ? JsonSchemaPrimitiveTypeWithoutArray<TYPES, PROPERTIES, REQUIRED, AP> :
+    any :
+    CONST :
+    never;
 
 /**
  * Deduce the type that represents a JSON Schema from the Schema itself.

@@ -95,7 +95,7 @@ export class SchemaBuilder<T> {
      */
     static arraySchema<U>(items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}, nullable?: boolean) {
         (schema as JSONSchema).type = nullable ? ["array", "null"] : "array";
-        (schema as JSONSchema).items = [items.schemaObject];
+        (schema as JSONSchema).items = items.schemaObject;
         return new SchemaBuilder<U[]>(schema)
     }
 
@@ -441,7 +441,7 @@ export class SchemaBuilder<T> {
             // Transform the property if it's not an array
             if ((propertySchema as JSONSchema).type !== "array") {
                 this.schemaObject.properties[property as string] = {
-                    oneOf: [propertySchema, { type: "array", items: [propertySchema] }]
+                    oneOf: [propertySchema, { type: "array", items: propertySchema }]
                 }
             }
         }
