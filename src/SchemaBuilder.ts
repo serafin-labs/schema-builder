@@ -35,7 +35,7 @@ export class SchemaBuilder<T> {
      * Function that take an inline JSON schema and deduces its type automatically!
      * Type, enums and required have to be string literals for this function to work... So you'll probably have to use contants (ex: STRING_TYPE), use the helper 'keys' function or pass the schema itself as the generic type argument.
      */
-    static fromJsonSchema<S extends JSONSchema>(schema: S): SchemaBuilder<{ [P in keyof JsonSchemaType<S>]: JsonSchemaType<S>[P] }> {
+    static fromJsonSchema<S>(schema: S): SchemaBuilder<{ [P in keyof JsonSchemaType<S>]: JsonSchemaType<S>[P] }> {
         return new SchemaBuilder<any>(schema)
     }
 
@@ -44,59 +44,80 @@ export class SchemaBuilder<T> {
      * AdditionalProperties is automatically set to false
      */
     static emptySchema(schema: Pick<JSONSchema, JSONSchemaObjectProperties> = {}, nullable?: boolean) {
-        (schema as JSONSchema).type = nullable ? ["object", "null"] : "object";
-        (schema as JSONSchema).additionalProperties = false;
-        return new SchemaBuilder<{}>(schema)
+        let s: JSONSchema = {
+            ...schema,
+            type: nullable ? ["object", "null"] : "object",
+            additionalProperties: false
+        }
+        return new SchemaBuilder<{}>(s)
     }
 
     /**
      * Create a string schema
      */
     static stringSchema(schema: Pick<JSONSchema, JSONSchemaStringProperties> = {}, nullable?: boolean) {
-        (schema as JSONSchema).type = nullable ? ["string", "null"] : "string"
-        return new SchemaBuilder<string>(schema)
+        let s: JSONSchema = {
+            ...schema,
+            type: nullable ? ["string", "null"] : "string"
+        }
+        return new SchemaBuilder<string>(s)
     }
 
     /**
      * Create a number schema
      */
     static numberSchema(schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}, nullable?: boolean) {
-        (schema as JSONSchema).type = nullable ? ["number", "null"] : "number"
-        return new SchemaBuilder<number>(schema)
+        let s: JSONSchema = {
+            ...schema,
+            type: nullable ? ["number", "null"] : "number"
+        }
+        return new SchemaBuilder<number>(s)
     }
 
     /**
      * Create an integer schema
      */
     static integerSchema(schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {}, nullable?: boolean) {
-        (schema as JSONSchema).type = nullable ? ["integer", "null"] : "integer"
-        return new SchemaBuilder<number>(schema)
+        let s: JSONSchema = {
+            ...schema,
+            type: nullable ? ["integer", "null"] : "integer"
+        }
+        return new SchemaBuilder<number>(s)
     }
 
     /**
      * Create a boolean schema
      */
     static booleanSchema(schema: Pick<JSONSchema, JSONSchemaProperties> = {}, nullable?: boolean) {
-        (schema as JSONSchema).type = nullable ? ["boolean", "null"] : "boolean"
-        return new SchemaBuilder<boolean>(schema)
+        let s: JSONSchema = {
+            ...schema,
+            type: nullable ? ["boolean", "null"] : "boolean"
+        }
+        return new SchemaBuilder<boolean>(s)
     }
 
     /**
      * Create an enum schema
      */
     static enumSchema<K extends keyof any>(values: K[], schema: Pick<JSONSchema, JSONSchemaProperties> = {}, nullable?: boolean) {
-        (schema as JSONSchema).type = nullable ? ["string", "null"] : "string";
-        (schema as JSONSchema).enum = nullable ? [...values as string[], null] : values as string[];
-        return new SchemaBuilder<K>(schema)
+        let s: JSONSchema = {
+            ...schema,
+            type: nullable ? ["string", "null"] : "string",
+            enum: nullable ? [...values as string[], null] : values as string[]
+        }
+        return new SchemaBuilder<K>(s)
     }
 
     /**
      * Create an array schema
      */
     static arraySchema<U>(items: SchemaBuilder<U>, schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {}, nullable?: boolean) {
-        (schema as JSONSchema).type = nullable ? ["array", "null"] : "array";
-        (schema as JSONSchema).items = items.schemaObject;
-        return new SchemaBuilder<U[]>(schema)
+        let s: JSONSchema = {
+            ...schema,
+            type: nullable ? ["array", "null"] : "array",
+            items: items.schemaObject
+        }
+        return new SchemaBuilder<U[]>(s)
     }
 
     /**
