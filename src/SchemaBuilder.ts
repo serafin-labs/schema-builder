@@ -1,4 +1,3 @@
-import * as _ from "lodash"
 import * as Ajv from 'ajv'
 import * as VError from 'verror'
 
@@ -125,7 +124,7 @@ export class SchemaBuilder<T> {
      */
     static oneOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
         return new SchemaBuilder<T1 | T2>({
-            oneOf: [schemaBuilder1.schemaObject, schemaBuilder2.schemaObject]
+            oneOf: [cloneJSON(schemaBuilder1.schemaObject), cloneJSON(schemaBuilder2.schemaObject)]
         })
     }
 
@@ -134,7 +133,7 @@ export class SchemaBuilder<T> {
      */
     static allOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
         return new SchemaBuilder<T1 & T2>({
-            allOf: [schemaBuilder1.schemaObject, schemaBuilder2.schemaObject]
+            allOf: [cloneJSON(schemaBuilder1.schemaObject), cloneJSON(schemaBuilder2.schemaObject)]
         })
     }
 
@@ -143,7 +142,7 @@ export class SchemaBuilder<T> {
      */
     static anyOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
         return new SchemaBuilder<T1 | T2 | (T1 & T2)>({
-            anyOf: [schemaBuilder1.schemaObject, schemaBuilder2.schemaObject]
+            anyOf: [cloneJSON(schemaBuilder1.schemaObject), cloneJSON(schemaBuilder2.schemaObject)]
         })
     }
 
@@ -152,7 +151,7 @@ export class SchemaBuilder<T> {
      */
     static not(schemaBuilder: SchemaBuilder<any>) {
         return new SchemaBuilder<any>({
-            not: schemaBuilder.schemaObject
+            not: cloneJSON(schemaBuilder.schemaObject)
         })
     }
 
@@ -272,7 +271,6 @@ export class SchemaBuilder<T> {
 
     /**
      * Add a property using the given schema builder
-     * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      */
     addProperty<U, K extends keyof any, REQUIRED extends boolean = true>(propertyName: K, schemaBuilder: SchemaBuilder<U>, isRequired?: REQUIRED): REQUIRED extends true ? SchemaBuilder<Combine<T, U, K>> : SchemaBuilder<CombineOptional<T, U, K>> {
         if (!this.isObjectSchema) {
@@ -283,7 +281,7 @@ export class SchemaBuilder<T> {
         if (propertyName in schemaObject.properties) {
             throw new VError(`Schema Builder Error: '${propertyName}' already exists in ${schemaObject.title || 'this'} schema`);
         }
-        schemaObject.properties[propertyName as string] = schemaBuilder.schemaObject;
+        schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject);
         if (isRequired === true || isRequired === undefined) {
             schemaObject.required = schemaObject.required || [];
             schemaObject.required.push(propertyName as string)
@@ -301,7 +299,7 @@ export class SchemaBuilder<T> {
             throw new VError(`Schema Builder Error: additionalProperties is already set in ${this.schemaObject.title || 'this'} schema.`)
         }
         let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.additionalProperties = schemaBuilder ? schemaBuilder.schemaObject : true
+        schemaObject.additionalProperties = schemaBuilder ? cloneJSON(schemaBuilder.schemaObject) : true
         return new SchemaBuilder(schemaObject) as any
     }
 
@@ -427,7 +425,7 @@ export class SchemaBuilder<T> {
             schemaObject.additionalProperties = false
             schemaObject.required = schemaObject.required || []
             for (let additionalProperty of additionalProperties) {
-                schemaObject.properties[additionalProperty] = typeof additionalProps === "boolean" ? {} : additionalProps
+                schemaObject.properties[additionalProperty] = typeof additionalProps === "boolean" ? {} : cloneJSON(additionalProps)
                 schemaObject.required.push(additionalProperty)
             }
         }
@@ -447,7 +445,6 @@ export class SchemaBuilder<T> {
 
     /**
      * Transform properties to accept an alternative type. additionalProperties is set false.
-     * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      * 
      * @param changedProperties properties that will have the alternative type
      * @param schemaBuilder 
@@ -462,7 +459,7 @@ export class SchemaBuilder<T> {
         for (let property of propertyNames) {
             let propertySchema = schemaObject.properties[property as string];
             schemaObject.properties[property as string] = {
-                oneOf: [propertySchema, schemaBuilder.schemaObject]
+                oneOf: [propertySchema, cloneJSON(schemaBuilder.schemaObject)]
             }
         }
         return new SchemaBuilder(schemaObject) as any
@@ -486,7 +483,7 @@ export class SchemaBuilder<T> {
             // Transform the property if it's not an array
             if ((propertySchema as JSONSchema).type !== "array") {
                 schemaObject.properties[property as string] = {
-                    oneOf: [propertySchema, { type: "array", items: propertySchema }]
+                    oneOf: [propertySchema, { type: "array", items: cloneJSON(propertySchema) }]
                 }
             }
         }
@@ -522,7 +519,7 @@ export class SchemaBuilder<T> {
                     itemsSchema = items as JSONSchema
                 }
                 schemaObject.properties[property as string] = {
-                    oneOf: [itemsSchema, propertySchema]
+                    oneOf: [cloneJSON(itemsSchema), propertySchema]
                 }
             }
         }
@@ -532,101 +529,101 @@ export class SchemaBuilder<T> {
     /**
      * Merge all properties from the given schema into this one. If a property name is already used, a allOf statement is used.
      * This method only copy properties.
-     * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      */
     intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<T & T2> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'intersectProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        if (schema.schemaObject.properties) {
-            schemaObject.properties = schemaObject.properties || {};
-            for (let propertyKey in schema.schemaObject.properties) {
-                if (!(propertyKey in schemaObject.properties)) {
-                    schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                        schemaObject.required = schemaObject.required || [];
-                        schemaObject.required.push(propertyKey)
+        let schemaObject1 = cloneJSON(this.schemaObject)
+        let schemaObject2 = cloneJSON(schema.schemaObject)
+        if (schemaObject2.properties) {
+            schemaObject1.properties = schemaObject1.properties || {};
+            for (let propertyKey in schemaObject2.properties) {
+                if (!(propertyKey in schemaObject1.properties)) {
+                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey];
+                    if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
+                        schemaObject1.required = schemaObject1.required || [];
+                        schemaObject1.required.push(propertyKey)
                     }
                 } else {
-                    schemaObject.properties[propertyKey] = {
-                        allOf: [schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
+                    schemaObject1.properties[propertyKey] = {
+                        allOf: [schemaObject1.properties[propertyKey], schemaObject2.properties[propertyKey]]
                     }
-                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1 && (!schemaObject.required || schemaObject.required.indexOf(propertyKey) === -1)) {
-                        schemaObject.required = schemaObject.required || [];
-                        schemaObject.required.push(propertyKey)
+                    if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1 && (!schemaObject1.required || schemaObject1.required.indexOf(propertyKey) === -1)) {
+                        schemaObject1.required = schemaObject1.required || [];
+                        schemaObject1.required.push(propertyKey)
                     }
                 }
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject1) as any
     }
 
     /**
      * Merge all properties from the given schema into this one. If a property name is already used, a oneOf statement is used.
      * This method only copy properties.
-     * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      */
     mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Merge<T, T2>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        if (schema.schemaObject.properties) {
-            schemaObject.properties = schemaObject.properties || {};
-            for (let propertyKey in schema.schemaObject.properties) {
-                if (!(propertyKey in schemaObject.properties)) {
-                    schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                        schemaObject.required = schemaObject.required || [];
-                        schemaObject.required.push(propertyKey)
+        let schemaObject1 = cloneJSON(this.schemaObject)
+        let schemaObject2 = cloneJSON(schema.schemaObject)
+        if (schemaObject2.properties) {
+            schemaObject1.properties = schemaObject1.properties || {};
+            for (let propertyKey in schemaObject2.properties) {
+                if (!(propertyKey in schemaObject1.properties)) {
+                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey];
+                    if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
+                        schemaObject1.required = schemaObject1.required || [];
+                        schemaObject1.required.push(propertyKey)
                     }
                 } else {
-                    schemaObject.properties[propertyKey] = {
-                        oneOf: [schemaObject.properties[propertyKey], schema.schemaObject.properties[propertyKey]]
+                    schemaObject1.properties[propertyKey] = {
+                        oneOf: [schemaObject1.properties[propertyKey], schemaObject2.properties[propertyKey]]
                     }
-                    if (!schemaObject.required || schemaObject.required.indexOf(propertyKey) === -1) {
-                        schemaObject.required = schemaObject.required || [];
-                        schemaObject.required.push(propertyKey)
+                    if (!schemaObject1.required || schemaObject1.required.indexOf(propertyKey) === -1) {
+                        schemaObject1.required = schemaObject1.required || [];
+                        schemaObject1.required.push(propertyKey)
                     }
                 }
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject1) as any
     }
 
     /**
      * Overwrite all properties from the given schema into this one. If a property name is already used, the new type override the existing one.
      * This method only copy properties.
-     * /!\ If 'schemaBuilder' param is used somewhere else, you should clone it first to avoid side effects
      */
     overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Overwrite<T, T2>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'overwriteProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        if (schema.schemaObject.properties) {
-            schemaObject.properties = schemaObject.properties || {};
-            for (let propertyKey in schema.schemaObject.properties) {
-                if (!(propertyKey in schemaObject.properties)) {
-                    schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                        schemaObject.required = schemaObject.required || [];
-                        schemaObject.required.push(propertyKey)
+        let schemaObject1 = cloneJSON(this.schemaObject)
+        let schemaObject2 = cloneJSON(schema.schemaObject)
+        if (schemaObject2.properties) {
+            schemaObject1.properties = schemaObject1.properties || {};
+            for (let propertyKey in schemaObject2.properties) {
+                if (!(propertyKey in schemaObject1.properties)) {
+                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey];
+                    if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
+                        schemaObject1.required = schemaObject1.required || [];
+                        schemaObject1.required.push(propertyKey)
                     }
                 } else {
-                    schemaObject.properties[propertyKey] = schema.schemaObject.properties[propertyKey];
-                    if (schemaObject.required && schemaObject.required.indexOf(propertyKey) !== -1) {
-                        schemaObject.required = schemaObject.required.filter(r => r !== propertyKey)
+                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey];
+                    if (schemaObject1.required && schemaObject1.required.indexOf(propertyKey) !== -1) {
+                        schemaObject1.required = schemaObject1.required.filter(r => r !== propertyKey)
                     }
-                    if (schema.schemaObject.required && schema.schemaObject.required.indexOf(propertyKey) !== -1) {
-                        schemaObject.required = schemaObject.required || [];
-                        schemaObject.required.push(propertyKey)
+                    if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
+                        schemaObject1.required = schemaObject1.required || [];
+                        schemaObject1.required.push(propertyKey)
                     }
                 }
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject1) as any
     }
 
     /**
@@ -765,7 +762,8 @@ function throughJsonSchema(schema: JSONSchema | JSONSchema[], action: (schema: J
             throughJsonSchema(s, action)
         })
     } else {
-        if (!_.isObject(schema)) {
+        const type = typeof schema
+        if (schema == null || type != 'object') {
             return
         }
         action(schema)
