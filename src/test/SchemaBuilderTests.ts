@@ -1,5 +1,4 @@
 import { expect } from "chai";
-import * as chai from "chai";
 import { SchemaBuilder } from "../";
 import { JSONSchema } from "../JsonSchema";
 
@@ -133,7 +132,7 @@ describe('Schema Builder', function () {
     it('should convert to nullable', function () {
         let schemaBuilder = SchemaBuilder.emptySchema().addEnum("s", ["a", "b", "c"], {}, false).addArray("a", SchemaBuilder.stringSchema(), {}, false);
         expect(() => schemaBuilder.validate({ s: null, a: null })).to.throw()
-        expect(() => schemaBuilder.clone().toNullable().validate({ s: null, a: null })).to.not.throw()
+        expect(() => schemaBuilder.toNullable().validate({ s: null, a: null })).to.not.throw()
     });
 
     it('should rename a property', function () {
@@ -388,7 +387,7 @@ describe('Schema Builder', function () {
             }]
         })).to.throw()
 
-        let queryUserSchema = userSchema.clone({ title: "UserQuery" })
+        let queryUserSchema = userSchema.setSchemaAttributes({ title: "UserQuery" })
             .pickProperties(["firstName", "lastName", "age", "email", "tags"])
             .transformPropertiesToArray()
             .unwrapArrayProperties()
