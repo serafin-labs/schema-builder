@@ -1,7 +1,6 @@
 import { expect } from "chai";
 import * as chai from "chai";
-import { SchemaBuilder, STRING_TYPE, INTEGER_TYPE, OBJECT_TYPE, ARRAY_TYPE, BOOLEAN_TYPE, NUMBER_TYPE, keys } from "../";
-import { NULL_TYPE } from "../JsonSchemaType";
+import { SchemaBuilder } from "../";
 import { JSONSchema } from "../JsonSchema";
 
 describe('Schema Builder', function () {
@@ -414,92 +413,92 @@ describe('Schema Builder', function () {
 
     it('should set an inline schema', function () {
         let schemaBuilder = SchemaBuilder.fromJsonSchema({
-            type: OBJECT_TYPE,
+            type: "object",
             properties: {
                 anEmptySchema: {},
                 aMultiTypeSchema: {
-                    type: [INTEGER_TYPE, STRING_TYPE, OBJECT_TYPE, ARRAY_TYPE],
+                    type: ["integer", "string", "object", "array"],
                     description: "this is a test",
                     items: {
-                        type: BOOLEAN_TYPE
+                        type: "boolean"
                     },
                     additionalProperties: false,
                     properties: {
                         ok: {
-                            type: BOOLEAN_TYPE,
+                            type: "boolean",
                         }
                     }
 
                 },
                 aString: {
-                    type: STRING_TYPE,
+                    type: "string",
                     minLength: 1
                 },
                 aConstString: {
-                    type: STRING_TYPE,
-                    const: "constant" as "constant"
+                    type: "string",
+                    const: "constant"
                 },
                 aSpecialEnum: {
-                    type: [STRING_TYPE, NUMBER_TYPE],
-                    enum: keys(["A", "B", 1, 2])
+                    type: ["string", "number"],
+                    enum: ["A", "B", 1, 2]
                 },
                 aNullableString: {
-                    type: [STRING_TYPE, NULL_TYPE],
+                    type: ["string", "null"],
                 },
                 aNullProperty: {
-                    type: NULL_TYPE
+                    type: "null"
                 },
                 aBoolean: {
-                    type: BOOLEAN_TYPE,
+                    type: "boolean",
                 },
                 anInteger: {
-                    type: INTEGER_TYPE,
+                    type: "integer",
                     minimum: 0
                 },
                 aSubObject: {
-                    type: OBJECT_TYPE,
+                    type: "object",
                     additionalProperties: {
-                        type: NUMBER_TYPE,
+                        type: "number",
                     },
                     properties: {
                         aSubProperty: {
-                            type: NUMBER_TYPE,
+                            type: "number",
                             maximum: 100
                         }
                     },
                 },
                 aOneOfObject: {
                     oneOf: [{
-                        type: INTEGER_TYPE,
+                        type: "integer",
                     }, {
-                        type: BOOLEAN_TYPE,
+                        type: "boolean",
                     }, {
-                        type: OBJECT_TYPE,
+                        type: "object",
                         additionalProperties: false,
                         properties: {
-                            test: { type: STRING_TYPE }
+                            test: { type: "string" }
                         }
                     }]
                 },
                 anArray: {
-                    type: ARRAY_TYPE,
+                    type: "array",
                     items: {
-                        type: STRING_TYPE,
-                        enum: keys(["a", "b", "c"])
+                        type: "string",
+                        enum: ["a", "b", "c"]
                     }
                 },
                 aMultiArray: {
-                    type: ARRAY_TYPE,
+                    type: "array",
                     items: [{
-                        type: STRING_TYPE
+                        type: "string"
                     }, {
-                        type: BOOLEAN_TYPE
+                        type: "boolean"
                     }]
                 }
             },
-            required: keys(["aBoolean", "anArray"]),
+            required: ["aBoolean", "anArray"],
             additionalProperties: false
-        })
+        } as const)
         expect(schemaBuilder).to.exist
         expect(() => schemaBuilder.validate({
             aBoolean: false,

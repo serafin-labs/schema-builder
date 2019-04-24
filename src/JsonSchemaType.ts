@@ -2,16 +2,6 @@
  * This file contains a set of special conditional types used to transform a litteral JSON schema into the corresponding typescript type.
  */
 
-// Constant string literals that helps defining inline json shemas
-export const STRING_TYPE = "string" as "string"
-export const INTEGER_TYPE = "integer" as "integer"
-export const NUMBER_TYPE = "number" as "number"
-export const BOOLEAN_TYPE = "boolean" as "boolean"
-export const NULL_TYPE = "null" as "null"
-export const OBJECT_TYPE = "object" as "object"
-export const ARRAY_TYPE = "array" as "array"
-export const keys = <K extends keyof any>(v: K[]): K[] => v
-
 /**
  * Type used to detect simple JSON Schema types integer, boolean, null, string, enum
  */
@@ -25,7 +15,7 @@ export type JsonSchemaSimpleTypes<TYPE> =
 /**
  * Extract the type of an array in an object type { t: T }
  */
-export type ArrayToTypeObject<T> = T extends Array<infer T> ? { t: T } : never
+export type ArrayToTypeObject<T> = T extends ReadonlyArray<infer T> ? { t: T } : never
 
 /**
  * Transform all properties of a type T to JsonSchemaType and finally unwrap those properties
@@ -50,7 +40,7 @@ export type JsonSchemaObjectType<PROPERTIES, REQUIRED, AP> =
  * Type of properties map for an 'object' type
  */
 export type JsonSchemaProperties<T, R> =
-    R extends Array<infer KR> ?
+    R extends ReadonlyArray<infer KR> ?
     [KR] extends [keyof T] ? { [P in KR]: JsonSchemaType<T[P]> } & { [P in Exclude<keyof T, KR>]?: JsonSchemaType<T[P]> } :
     never /* A required property does not exist */ :
     { [P in keyof T]?: JsonSchemaType<T[P]> } /* No required properties */;
@@ -81,7 +71,7 @@ export type JsonSchemaPrimitiveTypeWithoutArray<TYPE, PROPERTIES, REQUIRED, AP> 
 export type JsonSchemaPrimitiveType<TYPE, ITEM, PROPERTIES, REQUIRED, AP> =
     TYPE extends "integer" | "number" | "boolean" | "null" | "string" ? JsonSchemaSimpleTypes<TYPE> :
     TYPE extends "object" ? JsonSchemaObjectType<PROPERTIES, REQUIRED, AP> :
-    TYPE extends "array" ? ITEM extends Array<any> ? ArrayOfJsonSchemasType<ITEM>[] :
+    TYPE extends "array" ? ITEM extends ReadonlyArray<any> ? ArrayOfJsonSchemasType<ITEM>[] :
     ITEM extends { type: "array" } ? JsonSchemaArray<ITEM> :
     JsonSchemaTypeWithoutArray<ITEM>[] :
     never
@@ -94,10 +84,10 @@ export type JsonSchemaTypeWithoutArray<T> =
     ONE_OF extends any[] ? ArrayOfJsonSchemasType<ONE_OF> :
     ANY_OF extends any[] ? ArrayOfJsonSchemasType<ANY_OF> :
     ALL_OF extends any[] ? any :
-    ENUM extends Array<infer ENUM_VALUE> ? ENUM_VALUE :
+    ENUM extends ReadonlyArray<infer ENUM_VALUE> ? ENUM_VALUE :
     {} extends CONST ?
     TYPE extends string ? JsonSchemaPrimitiveTypeWithoutArray<TYPE, PROPERTIES, REQUIRED, AP> :
-    TYPE extends Array<infer TYPES> ? JsonSchemaPrimitiveTypeWithoutArray<TYPES, PROPERTIES, REQUIRED, AP> :
+    TYPE extends ReadonlyArray<infer TYPES> ? JsonSchemaPrimitiveTypeWithoutArray<TYPES, PROPERTIES, REQUIRED, AP> :
     any :
     CONST :
     never;
@@ -108,13 +98,13 @@ export type JsonSchemaTypeWithoutArray<T> =
  */
 export type JsonSchemaType<T> =
     T extends { type?: infer TYPE, oneOf?: infer ONE_OF, anyOf?: infer ANY_OF, allOf?: infer ALL_OF, items?: infer ITEM, properties?: infer PROPERTIES, required?: infer REQUIRED, additionalProperties?: infer AP, enum?: infer ENUM, const?: infer CONST } ?
-    ONE_OF extends any[] ? ArrayOfJsonSchemasType<ONE_OF> :
-    ANY_OF extends any[] ? ArrayOfJsonSchemasType<ANY_OF> :
-    ALL_OF extends any[] ? any :
-    ENUM extends Array<infer ENUM_VALUE> ? ENUM_VALUE :
+    ONE_OF extends ReadonlyArray<any> ? ArrayOfJsonSchemasType<ONE_OF> :
+    ANY_OF extends ReadonlyArray<any> ? ArrayOfJsonSchemasType<ANY_OF> :
+    ALL_OF extends ReadonlyArray<any> ? any :
+    ENUM extends ReadonlyArray<infer ENUM_VALUE> ? ENUM_VALUE :
     {} extends CONST ?
     TYPE extends string ? JsonSchemaPrimitiveType<TYPE, ITEM, PROPERTIES, REQUIRED, AP> :
-    TYPE extends Array<infer TYPES> ? JsonSchemaPrimitiveType<TYPES, ITEM, PROPERTIES, REQUIRED, AP> :
+    TYPE extends ReadonlyArray<infer TYPES> ? JsonSchemaPrimitiveType<TYPES, ITEM, PROPERTIES, REQUIRED, AP> :
     any :
     CONST :
     never;
