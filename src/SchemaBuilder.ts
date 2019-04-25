@@ -241,7 +241,7 @@ export class SchemaBuilder<T> {
     /**
      * Make all optional properties of this schema nullable
      */
-    toNullable() {
+    toNullable(): SchemaBuilder<T> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(`Schema Builder Error: 'toNullable' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
         }
@@ -266,7 +266,7 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return new SchemaBuilder(schemaObject)
+        return new SchemaBuilder(schemaObject) as any
     }
 
     /**
