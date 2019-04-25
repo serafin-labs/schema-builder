@@ -144,7 +144,7 @@ type User = {
 We want also to have an alternative schema for the user when we send a patch request. Let's modify the initial schema:
 
 ```typescript
-let userPatchSchema = userSchema.clone()
+let userPatchSchema = userSchema
     .pickProperties(["firstName", "lastName", "email", "age", "tags"])
     .toOptionals()
 
@@ -180,17 +180,6 @@ There's more! This was a simple example. This library provides also a lot of tra
 Since it's a Typescript library, intellisense and code comments provide already a good description of the methods.
 
 This section will focus on advanced transformation methods and how to use them. Refer to the code for the rest.
-
-### clone
-
-All the methods of ```SchemaBuilder``` may affect the json schema and its generic type. When you need a new version of a schema, you have to clone the original schema first to ensure you don't cause any side effects.
-
-```typescript
-let originalSchema = SchemaBuilder.emptySchema()
-    .addString("prop1");
-let modifiedSchema = originalSchema.clone()
-    .addString("prop2");
-```
 
 ### allOf, anyOf, oneOf, not
 
@@ -234,11 +223,11 @@ let schema = SchemaBuilder.emptySchema()
     .addBoolean("prop2")
 
 // pickedSchema only contains "prop1"
-let pickedSchema = schema.clone()
+let pickedSchema = schema
     .pickProperties(["prop1"])
 
 // omitSchema only contains "prop1"
-let omitSchema = schema.clone()
+let omitSchema = schema
     .omitProperties(["prop2"])
 ```
 
@@ -253,15 +242,15 @@ let schema = SchemaBuilder.emptySchema()
     .addAdditionalProperties(SchemaBuilder.stringSchema())
 
 // pick properties and remove the index signature from the schema
-let schemaWithoutIndexSignature = schema.clone()
+let schemaWithoutIndexSignature = schema
     .pickAdditionalProperties(["prop1", "prop2"])
 
 // pick properties and keep the index signature from the schema
-let schemaWithIndexSignature = schema.clone()
+let schemaWithIndexSignature = schema
     .pickAdditionalProperties(["prop1"], [])
 
 // pick properties and keep only "prop3" from the index signature
-let schemaWithOtherProperties = schema.clone()
+let schemaWithOtherProperties = schema
     .pickAdditionalProperties(["prop1", "prop2"], ["prop3"])
 ```
 
@@ -369,45 +358,45 @@ You can also force the validation function to be cached right away ```schema.cac
 
 ### Literal Json Schema
 
-```SchemaBuilder``` contains a ```fromJsonSchema``` method that has the ability to deduce the type from the schema parameter directly. The schema has to be provided in a litteral form and use string literals for ```type```, ```enum```, ```const``` and ```required```.
+```SchemaBuilder``` contains a ```fromJsonSchema``` method that has the ability to deduce the type from the schema parameter directly. The schema has to be provided in a litteral form using ```as const```.
 
 For example:
 
 ```typescript
 let schemaBuilder = SchemaBuilder.fromJsonSchema({
-    type: OBJECT_TYPE,
+    type: "object",
     properties: {
         aString: {
-            type: STRING_TYPE,
+            type: "string",
             description: "this is a test"
         },
         aBoolean: {
-            type: BOOLEAN_TYPE,
+            type: "boolean",
         },
         anInteger: {
-            type: INTEGER_TYPE,
+            type: "integer",
             minimum: 0
         },
         aSubObject: {
-            type: OBJECT_TYPE,
+            type: "object",
             properties: {
                 aSubProperty: {
-                    type: NUMBER_TYPE,
+                    type: "number",
                     maximum: 100
                 }
             }
         },
         anArray: {
-            type: ARRAY_TYPE,
+            type: "array",
             items: {
-                type: STRING_TYPE,
-                enum: keys(["a", "b", "c"])
+                type: "string",
+                enum: ["a", "b", "c"]
             }
         }
     },
-    required: keys(["aBoolean", "anArray"]),
+    required: ["aBoolean", "anArray"],
     additionalProperties: false
-})
+} as const)
 ```
 
 Which gives you the following interface:
@@ -415,10 +404,7 @@ Which gives you the following interface:
 ```typescript
 type T = {
     aBoolean: boolean;
-    anArray: JsonSchemaArray<{
-        type: "string";
-        enum: ("a" | "b" | "c")[];
-    }>;
+    anArray: ("a" | "b" | "c")[];
     aString?: string;
     anInteger?: number;
     aSubObject?: {

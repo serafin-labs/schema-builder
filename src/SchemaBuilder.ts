@@ -114,7 +114,7 @@ export class SchemaBuilder<T> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: nullable ? ["array", "null"] : "array",
-            items: items.schemaObject
+            items: cloneJSON(items.schemaObject)
         }
         return new SchemaBuilder<U[]>(s)
     }
