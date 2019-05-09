@@ -83,9 +83,11 @@ export type UnwrapArrayProperties<T, K extends keyof T> = Omit<T, K> & { [P in K
 /**
  * Combine T with properties K of type U
  */
-export type Combine<T, U, K extends keyof any> = T & { [P in K]: U }
+export type Combine<T, U, K extends keyof any, R extends boolean, N extends boolean> = R extends true ? N extends true ? T & { [P in K]: U | null } : T & { [P in K]: U } : N extends true ? T & { [P in K]?: U | null } : T & { [P in K]?: U }
 
 /**
- * Combine T with optional properties K of type U
+ * Make all optional properties of T nullable.
  */
-export type CombineOptional<T, U, K extends keyof any> = T & { [P in K]?: U }
+export type Nullable<T> = {
+    [P in keyof T]: undefined extends T[P] ? T[P] | null : T[P];
+}

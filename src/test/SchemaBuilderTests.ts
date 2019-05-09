@@ -16,11 +16,11 @@ describe('Schema Builder', function () {
 
     it('should create oneOf, allOf, anyOf and not schemas', function () {
         let schemaBuilder = SchemaBuilder.oneOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema())
-        expect(schemaBuilder.schema.oneOf.length).to.eqls(2)
+        expect((schemaBuilder.schema.oneOf as any).length).to.eqls(2)
         let schemaBuilder2 = SchemaBuilder.allOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema({ title: "test" }))
-        expect(schemaBuilder2.schema.allOf.length).to.eqls(2)
+        expect((schemaBuilder2.schema.allOf as any).length).to.eqls(2)
         let schemaBuilder3 = SchemaBuilder.anyOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema())
-        expect(schemaBuilder3.schema.anyOf.length).to.eqls(2)
+        expect((schemaBuilder3.schema.anyOf as any).length).to.eqls(2)
         let schemaBuilder4 = SchemaBuilder.not(SchemaBuilder.stringSchema())
         expect(schemaBuilder4.schema.not).to.exist
     });
@@ -88,8 +88,8 @@ describe('Schema Builder', function () {
 
     it('should set optional properties', function () {
         let schemaBuilder = SchemaBuilder.emptySchema().addString("s", { default: "test" }).addBoolean("b", { default: false }).addBoolean("c", {}, false).setOptionalProperties(["s"]);
-        expect((schemaBuilder.schema.properties.s as JSONSchema).default).to.not.exist
-        expect((schemaBuilder.schema.properties.b as JSONSchema).default).to.exist
+        expect(((schemaBuilder.schema.properties as any).s as JSONSchema).default).to.not.exist
+        expect(((schemaBuilder.schema.properties as any).b as JSONSchema).default).to.exist
         expect(() => schemaBuilder.validate({
             b: true
         })).to.not.throw()
@@ -108,7 +108,7 @@ describe('Schema Builder', function () {
 
     it('should convert to optionals', function () {
         let schemaBuilder = SchemaBuilder.emptySchema().addString("s", { default: "test" }).addBoolean("b").toOptionals();
-        expect((schemaBuilder.schema.properties.s as JSONSchema).default).to.not.exist
+        expect(((schemaBuilder.schema.properties as any).s as JSONSchema).default).to.not.exist
         expect(() => schemaBuilder.validate({})).to.not.throw()
     });
 
@@ -119,8 +119,8 @@ describe('Schema Builder', function () {
             .addBoolean("b", { default: true })
             .addProperty("s", innerSchema)
             .toDeepOptionals();
-        expect((schemaBuilder.schema.properties.b as JSONSchema).default).to.not.exist
-        expect(((schemaBuilder.schema.properties.s as JSONSchema).properties.ss as JSONSchema).default).to.not.exist
+        expect(((schemaBuilder.schema.properties as any).b as JSONSchema).default).to.not.exist
+        expect(((((schemaBuilder.schema.properties as any).s as JSONSchema).properties as any).ss as JSONSchema).default).to.not.exist
         expect(() => schemaBuilder.validate({ s: { ss: "test" } })).to.not.throw()
     });
 
@@ -131,7 +131,7 @@ describe('Schema Builder', function () {
 
     it('should convert to nullable', function () {
         let schemaBuilder = SchemaBuilder.emptySchema().addEnum("s", ["a", "b", "c"], {}, false).addArray("a", SchemaBuilder.stringSchema(), {}, false);
-        expect(() => schemaBuilder.validate({ s: null, a: null })).to.throw()
+        expect(() => schemaBuilder.validate({ s: null, a: null } as any)).to.throw()
         expect(() => schemaBuilder.toNullable().validate({ s: null, a: null })).to.not.throw()
     });
 
@@ -175,7 +175,7 @@ describe('Schema Builder', function () {
     })
 
     it('should pick additional properties', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().pickAdditionalProperties(["s"], [])
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().pickAdditionalProperties(["s"])
         expect(schemaBuilder).to.exist
         expect(() => schemaBuilder.validate({
             s: "test",
@@ -188,7 +188,7 @@ describe('Schema Builder', function () {
     })
 
     it('should remove additional properties', function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().pickAdditionalProperties(["s"])
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").addAdditionalProperties().pickAdditionalProperties(["s"], [])
         expect(schemaBuilder).to.exist
         expect(() => schemaBuilder.validate({
             s: "test"
@@ -385,7 +385,7 @@ describe('Schema Builder', function () {
                 progress: 0,
                 isCompleted: false
             }]
-        })).to.throw()
+        } as any)).to.throw()
 
         let queryUserSchema = userSchema.setSchemaAttributes({ title: "UserQuery" })
             .pickProperties(["firstName", "lastName", "age", "email", "tags"])
@@ -403,11 +403,11 @@ describe('Schema Builder', function () {
         expect(queryUserSchema.validate.bind(queryUserSchema, {
             tags: "admin",
             age: "test"
-        })).to.throw()
+        } as any)).to.throw()
         expect(queryUserSchema.validateList.bind(queryUserSchema, [{
             tags: "admin",
             age: "test"
-        }])).to.throw()
+        } as any])).to.throw()
     });
 
     it('should set an inline schema', function () {

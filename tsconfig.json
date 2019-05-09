@@ -12,5 +12,6 @@
         "module": "esnext",
         "moduleResolution": "node",
         "target": "es5",
+        "strict": true
     }
 }
