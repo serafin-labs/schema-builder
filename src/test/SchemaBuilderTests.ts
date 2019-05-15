@@ -59,6 +59,19 @@ describe('Schema Builder', function () {
         } as any)).to.throw()
     });
 
+    it('should change validation config and copy it throught transformations', function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").configureValidation({ coerceTypes: false }).addNumber("n");
+        expect(schemaBuilder).to.exist
+        expect(() => schemaBuilder.validate({
+            n: 42,
+            s: "test"
+        })).to.not.throw()
+        expect(() => schemaBuilder.validate({
+            n: "42",
+            s: "test"
+        } as any)).to.throw()
+    });
+
     it('should fail to add a property that already exists', function () {
         expect(() => SchemaBuilder.emptySchema().addString("s1").addBoolean("s1")).to.throw()
         expect(() => SchemaBuilder.emptySchema().addString("s1").addBoolean("s1", {}, false)).to.throw()
