@@ -260,7 +260,7 @@ export class SchemaBuilder<T> {
                     }
                 } else {
                     schemaObject.properties[propertyName] = {
-                        oneOf: [schemaObject.properties[propertyName], { type: "null" }]
+                        anyOf: [schemaObject.properties[propertyName], { type: "null" }]
                     }
                 }
             }
@@ -559,7 +559,7 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Merge all properties from the given schema into this one. If a property name is already used, a oneOf statement is used.
+     * Merge all properties from the given schema into this one. If a property name is already used, a anyOf statement is used.
      * This method only copy properties.
      */
     mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Merge<T, T2>> {
@@ -579,7 +579,7 @@ export class SchemaBuilder<T> {
                     }
                 } else {
                     schemaObject1.properties[propertyKey] = {
-                        oneOf: [schemaObject1.properties[propertyKey], schemaObject2.properties[propertyKey]]
+                        anyOf: [schemaObject1.properties[propertyKey], schemaObject2.properties[propertyKey]]
                     }
                     if (!schemaObject1.required || schemaObject1.required.indexOf(propertyKey) === -1) {
                         schemaObject1.required = schemaObject1.required || [];
