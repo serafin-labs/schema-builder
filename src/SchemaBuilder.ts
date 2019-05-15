@@ -20,8 +20,7 @@ export class SchemaBuilder<T> {
      * Initialize a new SchemaBuilder instance.
      * /!\ schemaObject must not contain references. If you have references, use something like json-schema-ref-parser library first. 
      */
-    constructor(protected schemaObject: JSONSchema) {
-        this.schemaObject = schemaObject;
+    constructor(protected schemaObject: JSONSchema, protected validationConfig?: Ajv.Options) {
         throughJsonSchema(this.schemaObject, s => {
             if ("$ref" in s) {
                 throw new VError(`Schema Builder Error: $ref can't be used to initialize a SchemaBuilder. Dereferenced the schema first.`)
@@ -188,7 +187,7 @@ export class SchemaBuilder<T> {
         } else {
             schemaObject.required = required
         }
-        return new SchemaBuilder(schemaObject)
+        return new SchemaBuilder(schemaObject, this.validationConfig)
     }
 
     /**
@@ -205,7 +204,7 @@ export class SchemaBuilder<T> {
                 schemaObject.required.push(property as string)
             }
         }
-        return new SchemaBuilder(schemaObject)
+        return new SchemaBuilder(schemaObject, this.validationConfig)
     }
 
     /**
@@ -220,7 +219,7 @@ export class SchemaBuilder<T> {
         for (let property in schemaObject.properties) {
             delete (schemaObject.properties[property] as JSONSchema).default
         }
-        return new SchemaBuilder(schemaObject)
+        return new SchemaBuilder(schemaObject, this.validationConfig)
     }
 
     /**
@@ -234,7 +233,7 @@ export class SchemaBuilder<T> {
             // optional properties can't have default values
             delete s.default
         })
-        return new SchemaBuilder(schemaObject)
+        return new SchemaBuilder(schemaObject, this.validationConfig)
     }
 
     /**
@@ -265,7 +264,7 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -285,7 +284,7 @@ export class SchemaBuilder<T> {
             schemaObject.required = schemaObject.required || [];
             schemaObject.required.push(propertyName as string)
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -299,7 +298,7 @@ export class SchemaBuilder<T> {
         }
         let schemaObject = cloneJSON(this.schemaObject)
         schemaObject.additionalProperties = schemaBuilder ? cloneJSON(schemaBuilder.schemaObject) : true
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -362,7 +361,7 @@ export class SchemaBuilder<T> {
                 schemaObject.required.push(newPropertyName as string)
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -388,7 +387,7 @@ export class SchemaBuilder<T> {
             delete schemaObject.required
         }
         schemaObject.additionalProperties = false
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
 
@@ -428,7 +427,7 @@ export class SchemaBuilder<T> {
                 schemaObject.required.push(additionalProperty)
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -461,7 +460,7 @@ export class SchemaBuilder<T> {
                 oneOf: [propertySchema, cloneJSON(schemaBuilder.schemaObject)]
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -486,7 +485,7 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -522,7 +521,7 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -555,7 +554,7 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return new SchemaBuilder(schemaObject1) as any
+        return new SchemaBuilder(schemaObject1, this.validationConfig) as any
     }
 
     /**
@@ -588,7 +587,7 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return new SchemaBuilder(schemaObject1) as any
+        return new SchemaBuilder(schemaObject1, this.validationConfig) as any
     }
 
     /**
@@ -622,7 +621,7 @@ export class SchemaBuilder<T> {
                 }
             }
         }
-        return new SchemaBuilder(schemaObject1) as any
+        return new SchemaBuilder(schemaObject1, this.validationConfig) as any
     }
 
     /**
@@ -663,7 +662,7 @@ export class SchemaBuilder<T> {
             ...cloneJSON(this.schemaObject),
             ...schema
         }
-        return new SchemaBuilder(schemaObject) as any
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
     /**
@@ -702,11 +701,11 @@ export class SchemaBuilder<T> {
      * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
      * The default validation config is { coerceTypes: true, removeAdditional: true, useDefaults: true }
      */
-    configureValidation(config: { coerceTypes?: boolean, removeAdditional?: boolean, useDefaults?: boolean, allErrors?: boolean }) {
-        this.validationConfig = { ...this.validationConfig, ...config }
+    configureValidation(validationConfig: Ajv.Options) {
+        this.validationConfig = validationConfig
         this.clearCache()
     }
-    protected validationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true };
+    protected defaultValidationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true } as Ajv.Options;
     protected clearCache() {
         delete this.ajvList
         delete this.listValidationFunction
@@ -720,7 +719,7 @@ export class SchemaBuilder<T> {
     cacheValidationFunction() {
         // prepare validation function
         if (!this.validationFunction) {
-            this.ajv = new Ajv({ ...this.validationConfig });
+            this.ajv = new Ajv({ ...this.defaultValidationConfig, ...this.validationConfig });
             this.validationFunction = this.ajv.compile(this.schemaObject);
         }
     }
@@ -730,7 +729,7 @@ export class SchemaBuilder<T> {
     cacheListValidationFunction() {
         // prepare validation function
         if (!this.listValidationFunction) {
-            this.ajvList = new Ajv({ ...this.validationConfig });
+            this.ajvList = new Ajv({ ...this.defaultValidationConfig, ...this.validationConfig });
             this.ajvList.addSchema(this.schemaObject, "schema");
             this.listValidationFunction = this.ajvList.compile({ type: "array", items: { $ref: "schema" }, minItems: 1 });
         }
