@@ -36,7 +36,7 @@
         "nodemon": "^1.18.4",
         "remap-istanbul": "^0.11.1",
         "ts-loader": "^4.5.0",
-        "typescript": "^3.4.4",
+        "typescript": "^3.5.2",
         "webpack": "^4.19.1",
         "webpack-cli": "^2.1.5",
         "webpack-node-externals": "^1.7.2",
