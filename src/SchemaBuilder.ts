@@ -714,13 +714,20 @@ export class SchemaBuilder<T> {
         delete this.validationFunction
     }
 
+    get ajvValidationConfig() {
+        return {
+            ...this.defaultValidationConfig,
+            ...this.validationConfig
+        }
+    }
+
     /**
      * Explicitly cache the validation function for single objects with the current validation configuration
      */
     cacheValidationFunction() {
         // prepare validation function
         if (!this.validationFunction) {
-            this.ajv = new Ajv({ ...this.defaultValidationConfig, ...this.validationConfig });
+            this.ajv = new Ajv(this.ajvValidationConfig);
             this.validationFunction = this.ajv.compile(this.schemaObject);
         }
     }
@@ -730,7 +737,7 @@ export class SchemaBuilder<T> {
     cacheListValidationFunction() {
         // prepare validation function
         if (!this.listValidationFunction) {
-            this.ajvList = new Ajv({ ...this.defaultValidationConfig, ...this.validationConfig });
+            this.ajvList = new Ajv(this.ajvValidationConfig);
             this.ajvList.addSchema(this.schemaObject, "schema");
             this.listValidationFunction = this.ajvList.compile({ type: "array", items: { $ref: "schema" }, minItems: 1 });
         }
