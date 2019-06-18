@@ -580,9 +580,8 @@ export class SchemaBuilder<T> {
                     schemaObject1.properties[propertyKey] = {
                         anyOf: [schemaObject1.properties[propertyKey], schemaObject2.properties[propertyKey]]
                     }
-                    if (!schemaObject1.required || schemaObject1.required.indexOf(propertyKey) === -1) {
-                        schemaObject1.required = schemaObject1.required || [];
-                        schemaObject1.required.push(propertyKey)
+                    if (schemaObject1.required && schemaObject1.required.indexOf(propertyKey) !== -1 && (!schemaObject2.required || schemaObject2.required.indexOf(propertyKey) === -1)) {
+                        schemaObject1.required = schemaObject1.required.filter((p: string) => p !== propertyKey)
                     }
                 }
             }

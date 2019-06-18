@@ -15,22 +15,19 @@ export type Overwrite<T, U> = Omit<T, Extract<keyof T, keyof U>> & U;
 /**
  * Like `T & U`, but where there are overlapping properties use the
  * type from T[P] | U[P].
- * For overlapping properties, optional info is lost. The property becomes mandatory.
  */
 export type Merge<T, U> = Omit<T, Extract<keyof T, keyof U>> & Omit<U, Extract<keyof U, keyof T>> & { [P in keyof (T | U)]: (T[P] | U[P]) };
-
 
 /**
  * Type modifier that makes all properties optionals deeply
  */
-export type DeepPartial<T> =
-    T extends any[] ? DeepPartialArray<T[number]> :
-    T extends object ? DeepPartialObject<T> :
-    T;
-export type DeepPartialObject<T> = {
-    [P in keyof T]?: DeepPartial<T[P]>;
+export type DeepPartial<T> = {
+    [P in keyof T]?: T[P] extends Array<infer U>
+    ? Array<DeepPartial<U>>
+    : T[P] extends ReadonlyArray<infer U>
+    ? ReadonlyArray<DeepPartial<U>>
+    : DeepPartial<T[P]>
 };
-export interface DeepPartialArray<T> extends Array<DeepPartial<T>> { }
 
 /**
  * Make all properties of T required and non-nullable.

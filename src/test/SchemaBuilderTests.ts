@@ -315,6 +315,9 @@ describe('Schema Builder', function () {
         })).to.not.throw()
         expect(() => schemaBuilder2.validate({
             b: true
+        })).to.not.throw()
+        expect(() => schemaBuilder2.validate({
+            s: true
         } as any)).to.throw()
     })
 
