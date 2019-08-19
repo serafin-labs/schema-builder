@@ -1,6 +1,5 @@
 const path = require('path');
-const webpack = require('webpack');
-const CleanWebpackPlugin = require('clean-webpack-plugin')
+const { CleanWebpackPlugin } = require('clean-webpack-plugin')
 const nodeExternals = require('webpack-node-externals');
 const WebpackShellPlugin = require('webpack-shell-plugin');
 
@@ -44,7 +43,7 @@ var configuration = {
         path: path.resolve(__dirname, 'lib')
     },
     plugins: [
-        new CleanWebpackPlugin(["lib/*.js", "lib/*.js.map", "lib/coverage/*"]),
+        new CleanWebpackPlugin(),
         ...(isProduction ? [] : [new WebpackShellPlugin({ onBuildExit: ['npm test'] })])
     ]
 };
