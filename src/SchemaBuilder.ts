@@ -117,30 +117,48 @@ export class SchemaBuilder<T> {
         return new SchemaBuilder(s) as any
     }
 
+    static oneOf<T1>(schemaBuilder1: SchemaBuilder<T1>): SchemaBuilder<T1>;
+    static oneOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>): SchemaBuilder<T1 | T2>;
+    static oneOf<T1, T2, T3>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>): SchemaBuilder<T1 | T2 | T3>;
+    static oneOf<T1, T2, T3, T4>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>, schemaBuilder4: SchemaBuilder<T4>): SchemaBuilder<T1 | T2 | T3 | T4>;
+    static oneOf<T1, T2, T3, T4, T5>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>, schemaBuilder4: SchemaBuilder<T4>, schemaBuilder5: SchemaBuilder<T5>): SchemaBuilder<T1 | T2 | T3 | T4 | T5>;
+
     /**
      * Return a schema builder which represents schemaBuilder1 or schemaBuilder2. "oneOf" as described by JSON Schema specifications.
      */
-    static oneOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
-        return new SchemaBuilder<T1 | T2>({
-            oneOf: [cloneJSON(schemaBuilder1.schemaObject), cloneJSON(schemaBuilder2.schemaObject)]
+    static oneOf<T>(...schemaBuilders: SchemaBuilder<T>[]) {
+        return new SchemaBuilder<T>({
+            oneOf: schemaBuilders.map(builder => cloneJSON(builder.schemaObject)),
         })
     }
+
+    static allOf<T1>(schemaBuilder1: SchemaBuilder<T1>): SchemaBuilder<T1>;
+    static allOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>): SchemaBuilder<T1 & T2>;
+    static allOf<T1, T2, T3>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>): SchemaBuilder<T1 & T2 & T3>;
+    static allOf<T1, T2, T3, T4>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>, schemaBuilder4: SchemaBuilder<T4>): SchemaBuilder<T1 & T2 & T3 & T4>;
+    static allOf<T1, T2, T3, T4, T5>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>, schemaBuilder4: SchemaBuilder<T4>, schemaBuilder5: SchemaBuilder<T5>): SchemaBuilder<T1 & T2 & T3 & T4 & T5>;
 
     /**
      * Return a schema builder which represents schemaBuilder1 and schemaBuilder2. "allOf" as described by JSON Schema specifications.
      */
-    static allOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
-        return new SchemaBuilder<T1 & T2>({
-            allOf: [cloneJSON(schemaBuilder1.schemaObject), cloneJSON(schemaBuilder2.schemaObject)]
+    static allOf<T>(...schemaBuilders: SchemaBuilder<T>[]) {
+        return new SchemaBuilder<T>({
+            allOf: schemaBuilders.map(builder => cloneJSON(builder.schemaObject)),
         })
     }
+
+    static anyOf<T1>(schemaBuilder1: SchemaBuilder<T1>): SchemaBuilder<T1>;
+    static anyOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>): SchemaBuilder<T1 | T2 | (T1 & T2)>;
+    static anyOf<T1, T2, T3>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>): SchemaBuilder<T1 | T2 | T3 | (T1 & T2) | (T1 & T3) | (T1 & T2 & T3) | (T2 & T3)>;
+    static anyOf<T1, T2, T3, T4>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>, schemaBuilder3: SchemaBuilder<T3>, schemaBuilder4: SchemaBuilder<T4>): SchemaBuilder<T1 | T2 | T3 | T4 | (T1 & T2) | (T1 & T3) | (T1 & T4) | (T1 & T2 & T3) | (T1 & T2 & T4) | (T1 & T3 & T4) | (T2 & T3) | (T2 & T4) | (T2 & T3 & T4) | (T3 & T4) | (T1 & T2 & T3 & T4)>;
+
 
     /**
      * Return a schema builder which represents schemaBuilder1 or schemaBuilder2 or schemaBuilder1 and schemaBuilder2. "anyOf" as described by JSON Schema specifications.
      */
-    static anyOf<T1, T2>(schemaBuilder1: SchemaBuilder<T1>, schemaBuilder2: SchemaBuilder<T2>) {
-        return new SchemaBuilder<T1 | T2 | (T1 & T2)>({
-            anyOf: [cloneJSON(schemaBuilder1.schemaObject), cloneJSON(schemaBuilder2.schemaObject)]
+    static anyOf<T>(...schemaBuilders: SchemaBuilder<T>[]) {
+        return new SchemaBuilder<T>({
+            anyOf: schemaBuilders.map(builder => cloneJSON(builder.schemaObject)),
         })
     }
 
