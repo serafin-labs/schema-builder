@@ -665,6 +665,17 @@ export class SchemaBuilder<T> {
     }
 
     /**
+     * Change root level 'type' property.
+     */
+    setSchemaType(type: JSONSchema['type']): SchemaBuilder<T> {
+        let schemaObject = {
+            ...cloneJSON(this.schemaObject),
+            type,
+        }
+        return new SchemaBuilder(schemaObject, this.validationConfig)
+    }
+
+    /**
      * Validate the given object against the schema. If the object is invalid an error is thrown with the appropriate details.
      */
     validate(o: T) {
