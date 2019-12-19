@@ -2,7 +2,7 @@ import * as Ajv from 'ajv'
 import * as VError from 'verror'
 
 import { JsonSchemaType } from "./JsonSchemaType";
-import { Combine, DeepPartial, Merge, Omit, Overwrite, PartialProperties, Rename, RequiredProperties, TransformProperties, TransformPropertiesToArray, UnwrapArrayProperties, Nullable } from "./TransformationTypes";
+import { Combine, DeepPartial, Merge, Overwrite, PartialProperties, Rename, RequiredProperties, TransformProperties, TransformPropertiesToArray, UnwrapArrayProperties, Nullable } from "./TransformationTypes";
 import { JSONSchema } from "./JsonSchema";
 
 /**
@@ -278,6 +278,26 @@ export class SchemaBuilder<T> {
         schemaObject.properties = schemaObject.properties || {}
         if (propertyName in schemaObject.properties) {
             throw new VError(`Schema Builder Error: '${propertyName}' already exists in ${schemaObject.title || 'this'} schema`);
+        }
+        schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject);
+        if (isRequired === true || isRequired === undefined) {
+            schemaObject.required = schemaObject.required || [];
+            schemaObject.required.push(propertyName as string)
+        }
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Replace an existing property of this schema
+     */
+    replaceProperty<U, K extends keyof T, REQUIRED extends boolean = true>(propertyName: K, schemaBuilder: SchemaBuilder<U>, isRequired?: REQUIRED): SchemaBuilder<Combine<Omit<T, K>, U, K, REQUIRED, false>> {
+        if (!this.isObjectSchema) {
+            throw new VError(`Schema Builder Error: you can only replace properties of an object schema`);
+        }
+        let schemaObject = cloneJSON(this.schemaObject)
+        schemaObject.properties = schemaObject.properties || {}
+        if (schemaObject.required) {
+            schemaObject.required = schemaObject.required.filter((p: string) => p !== propertyName)
         }
         schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject);
         if (isRequired === true || isRequired === undefined) {
@@ -621,6 +641,17 @@ export class SchemaBuilder<T> {
             }
         }
         return new SchemaBuilder(schemaObject1, this.validationConfig) as any
+    }
+
+    /**
+     * Extract a subschema of the current object schema
+     */
+    getSubschema<K extends keyof T>(propertyName: K) {
+        if (!this.isSimpleObjectSchema || !this.schemaObject || typeof this.schemaObject === "boolean" || !this.schemaObject.properties) {
+            throw new VError(`Schema Builder Error: 'extract' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`);
+        } else {
+            return new SchemaBuilder<T[K]>(this.schemaObject.properties[propertyName as string] as JSONSchema)
+        }
     }
 
     /**

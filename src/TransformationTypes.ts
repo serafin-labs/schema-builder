@@ -3,11 +3,6 @@
  */
 
 /**
- * Drop keys K from T.
- */
-export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
-
-/**
  * T & U but where overlapping properties use the type from U only.
  */
 export type Overwrite<T, U> = Omit<T, Extract<keyof T, keyof U>> & U;
