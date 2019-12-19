@@ -15,12 +15,12 @@ describe('Schema Builder', function () {
     });
 
     it('should create oneOf, allOf, anyOf and not schemas', function () {
-        let schemaBuilder = SchemaBuilder.oneOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema())
-        expect((schemaBuilder.schema.oneOf as any).length).to.eqls(2)
+        let schemaBuilder = SchemaBuilder.oneOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema(), SchemaBuilder.booleanSchema())
+        expect((schemaBuilder.schema.oneOf as any).length).to.eqls(3)
         let schemaBuilder2 = SchemaBuilder.allOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema({ title: "test" }))
         expect((schemaBuilder2.schema.allOf as any).length).to.eqls(2)
-        let schemaBuilder3 = SchemaBuilder.anyOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema())
-        expect((schemaBuilder3.schema.anyOf as any).length).to.eqls(2)
+        let schemaBuilder3 = SchemaBuilder.anyOf(SchemaBuilder.stringSchema(), SchemaBuilder.emptySchema(), SchemaBuilder.booleanSchema(), SchemaBuilder.numberSchema())
+        expect((schemaBuilder3.schema.anyOf as any).length).to.eqls(4)
         let schemaBuilder4 = SchemaBuilder.not(SchemaBuilder.stringSchema())
         expect(schemaBuilder4.schema.not).to.exist
     });
