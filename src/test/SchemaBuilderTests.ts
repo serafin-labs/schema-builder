@@ -514,6 +514,7 @@ describe('Schema Builder', function () {
             required: ["aBoolean", "anArray"],
             additionalProperties: false
         } as const)
+        let a: typeof schemaBuilder.T
         expect(schemaBuilder).to.exist
         expect(() => schemaBuilder.validate({
             aBoolean: false,

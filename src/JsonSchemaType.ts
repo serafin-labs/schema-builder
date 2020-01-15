@@ -3,6 +3,21 @@
  */
 
 /**
+ * Extract the type of an array in an object type { t: T }
+ */
+export type ArrayToTypeObject<T> = T extends ReadonlyArray<infer T> ? { t: T } : never
+
+/**
+ * Transform all properties of a type T to JsonSchemaType and finally unwrap those properties
+ */
+export type UnwrapPropsToJsonSchemaType<T> = { [P in keyof T]: JsonSchemaType<T[P]> }[keyof T]
+
+/**
+ * Type for a oneOf list, anyOf list, items list
+ */
+export type ArrayOfJsonSchemasType<T> = UnwrapPropsToJsonSchemaType<ArrayToTypeObject<T>>;
+
+/**
  * Type used to detect simple JSON Schema types integer, boolean, null, string, enum
  */
 export type JsonSchemaSimpleTypes<TYPE> =
@@ -53,8 +68,8 @@ export type JsonSchemaPrimitiveType<TYPE, ITEM, PROPERTIES, REQUIRED, AP> =
  */
 export type JsonSchemaType<T> =
     T extends { type?: infer TYPE, oneOf?: infer ONE_OF, anyOf?: infer ANY_OF, allOf?: infer ALL_OF, items?: infer ITEM, properties?: infer PROPERTIES, required?: infer REQUIRED, additionalProperties?: infer AP, enum?: infer ENUM, const?: infer CONST } ?
-    ONE_OF extends ReadonlyArray<infer ONE_OF_VALUE> ? JsonSchemaType<ONE_OF_VALUE>[] :
-    ANY_OF extends ReadonlyArray<infer ANY_OF_VALUE> ? JsonSchemaType<ANY_OF_VALUE>[] :
+    ONE_OF extends ReadonlyArray<any> ? ArrayOfJsonSchemasType<ONE_OF> :
+    ANY_OF extends ReadonlyArray<any> ? ArrayOfJsonSchemasType<ANY_OF> :
     ALL_OF extends ReadonlyArray<any> ? any :
     ENUM extends ReadonlyArray<infer ENUM_VALUE> ? ENUM_VALUE :
     {} extends CONST ?
