@@ -747,14 +747,14 @@ export class SchemaBuilder<T> {
 
     /**
      * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
-     * The default validation config is { coerceTypes: true, removeAdditional: true, useDefaults: true }
+     * The default validation config is { coerceTypes: false, removeAdditional: false, useDefaults: true }
      */
     configureValidation(validationConfig: Ajv.Options): this {
         this.validationConfig = validationConfig
         this.clearCache()
         return this
     }
-    protected defaultValidationConfig = { coerceTypes: true, removeAdditional: true, useDefaults: true } as Ajv.Options;
+    protected defaultValidationConfig = { coerceTypes: false, removeAdditional: false, useDefaults: true } as Ajv.Options;
     protected clearCache() {
         delete this.ajvList
         delete this.listValidationFunction
