@@ -169,8 +169,7 @@ describe('Schema Builder', function () {
             s: "test",
             b: true
         }
-        expect(() => schemaBuilder.validate(o as any)).to.not.throw()
-        expect(o.s).not.to.exist
+        expect(() => schemaBuilder.validate(o as any)).to.throw()
     })
 
     it('should omit properties', function () {
@@ -183,8 +182,7 @@ describe('Schema Builder', function () {
             s: "test",
             b: true
         }
-        expect(() => schemaBuilder.validate(o as any)).to.not.throw()
-        expect(o.s).not.to.exist
+        expect(() => schemaBuilder.validate(o as any)).to.throw()
     })
 
     it('should pick additional properties', function () {
@@ -210,8 +208,7 @@ describe('Schema Builder', function () {
             s: "test",
             test: 42
         }
-        expect(() => schemaBuilder.validate(o as any)).to.not.throw()
-        expect(o.test).to.not.exist
+        expect(() => schemaBuilder.validate(o as any)).to.throw()
     })
 
     it('should pick specific additional properties', function () {

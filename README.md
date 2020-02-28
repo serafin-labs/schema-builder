@@ -345,12 +345,8 @@ let schema = SchemaBuilder.emptySchema()
 ```validate``` and ```validateList``` methods allows you to easily run validation against your schema. Those two methods use ```Ajv``` library. Validation functions are cached automatically. It uses the following default configuration :
 
 ```typescript
-import { metaSchema } from "@serafin/open-api"
-
-new Ajv({ coerceTypes: true, removeAdditional: true, useDefaults: true, meta: metaSchema })
+new Ajv({ coerceTypes: false, removeAdditional: false, useDefaults: true })
 ```
-
-```metaSchema``` is a subset of the current JSON Schema specification that corresponds to what Open Api 3 has decided to support. See the official Open Api 3 documentation for more details.
 
 You can override this configuration using the ```configureValidation``` method.
 
