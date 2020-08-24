@@ -48,8 +48,8 @@ export class SchemaBuilder<T> {
      * Function that take an inline JSON schema and deduces its type automatically!
      * Type, enums and required have to be string literals for this function to work... So you'll probably have to use contants (ex: STRING_TYPE), use the helper 'keys' function or pass the schema itself as the generic type argument.
      */
-    static fromJsonSchema<S>(schema: S): SchemaBuilder<JsonSchemaType<S>> {
-        return new SchemaBuilder<any>(schema)
+    static fromJsonSchema<S>(schema: S, validationConfig?: Ajv.Options): SchemaBuilder<JsonSchemaType<S>> {
+        return new SchemaBuilder<any>(schema, validationConfig)
     }
 
     /**
