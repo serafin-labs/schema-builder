@@ -16,6 +16,8 @@ import {
     Nullable,
     OneOf,
     AllOf,
+    RequiredKnownKeys,
+    OptionalKnownKeys,
 } from "./TransformationTypes"
 import { JSONSchema } from "./JsonSchema"
 
@@ -804,16 +806,16 @@ export class SchemaBuilder<T> {
         return null as any
     }
 
-    get requiredProperties(): T extends object ? (keyof T)[] : null {
+    get requiredProperties(): T extends object ? RequiredKnownKeys<T> : null {
         if (this.isObjectSchema && !this.hasSchemasCombinationKeywords) {
             return (this.schemaObject.required as any) || []
         }
         return null as any
     }
 
-    get optionalProperties(): T extends object ? (keyof T)[] : null {
+    get optionalProperties(): T extends object ? OptionalKnownKeys<T> : null {
         const properties = this.properties
-        const required = this.requiredProperties
+        const required = (this.requiredProperties as any) as (keyof T)[]
         return properties ? properties.filter((property) => required && required.indexOf(property) === -1) : (null as any)
     }
 

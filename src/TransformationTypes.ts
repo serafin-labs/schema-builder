@@ -104,6 +104,10 @@ export type ForcedUnwrapProperties<T> = { [P in keyof T]: T[P] }[keyof T]
  */
 export type ArrayToOneOfObject<T> = T extends [...infer R] ? { t: OneOf<R> } : any
 
+/**
+ * Type that transform a list of SchemaBuilders in the following manner
+ * [SchemaBuilder<T1>, SchemaBuilder<T2>, ...] => T1 | T2 | ...
+ */
 export type OneOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any]
     ? T extends [SchemaBuilder<infer S>, ...infer R]
         ? S | ForcedUnwrapProperties<ArrayToOneOfObject<R>>
@@ -118,6 +122,10 @@ export type OneOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any
  */
 export type ArrayToAllOfObject<T> = T extends [...infer R] ? { t: AllOf<R> } : any
 
+/**
+ * Type that transform a list of SchemaBuilders in the following manner
+ * [SchemaBuilder<T1>, SchemaBuilder<T2>, ...] => T1 & T2 & ...
+ */
 export type AllOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any]
     ? T extends [SchemaBuilder<infer S>, ...infer R]
         ? S & ForcedUnwrapProperties<ArrayToAllOfObject<R>>
@@ -125,3 +133,19 @@ export type AllOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any
     : T extends [SchemaBuilder<infer S>]
     ? S
     : any
+
+/**
+ * Type that extract the required properties names from an object
+ * @see https://github.com/Microsoft/TypeScript/issues/12215#issuecomment-414808995
+ */
+export type RequiredKnownKeys<T> = {
+    [K in keyof T]: {} extends Pick<T, K> ? never : K
+} extends { [_ in keyof T]: infer U } ? ({} extends U ? never : U) : never
+
+/**
+ * Type that extract the optional properties names from an object
+ * @see https://github.com/Microsoft/TypeScript/issues/12215#issuecomment-414808995
+ */
+export type OptionalKnownKeys<T> = {
+    [K in keyof T]: string extends K ? never : number extends K ? never : {} extends Pick<T, K> ? K : never
+} extends { [_ in keyof T]: infer U } ? ({} extends U ? never : U) : never
