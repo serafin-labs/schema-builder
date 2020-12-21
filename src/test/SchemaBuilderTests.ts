@@ -696,9 +696,12 @@ describe("Schema Builder", function () {
     })
 
     it("should get schema properties", function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("req").addNumber("opt", {}, false)
-        expect(schemaBuilder.properties).to.eql(["req", "opt"])
-        expect(schemaBuilder.requiredProperties).to.eql(["req"])
-        expect(schemaBuilder.optionalProperties).to.eql(["opt"])
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("req").addNumber("opt", {}, false).addAdditionalProperties()
+        const properties: ("req" | "opt")[] = schemaBuilder.properties
+        const requiredProperties: "req"[] = schemaBuilder.requiredProperties
+        const optionalProperties: "opt"[] = schemaBuilder.optionalProperties
+        expect(properties).to.eql(["req", "opt"])
+        expect(requiredProperties).to.eql(["req"])
+        expect(optionalProperties).to.eql(["opt"])
     })
 })

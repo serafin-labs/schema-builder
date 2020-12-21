@@ -149,3 +149,11 @@ export type RequiredKnownKeys<T> = {
 export type OptionalKnownKeys<T> = {
     [K in keyof T]: string extends K ? never : number extends K ? never : {} extends Pick<T, K> ? K : never
 } extends { [_ in keyof T]: infer U } ? ({} extends U ? never : U) : never
+
+/**
+ * Type that extract all the keys from an object without the index signature
+ * @see https://github.com/Microsoft/TypeScript/issues/12215#issuecomment-414808995
+ */
+export type KnownKeys<T> = {
+    [K in keyof T]: string extends K ? never : number extends K ? never : K
+  } extends { [_ in keyof T]: infer U } ? U : never
