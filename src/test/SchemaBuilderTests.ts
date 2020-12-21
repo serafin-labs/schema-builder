@@ -42,6 +42,9 @@ describe("Schema Builder", function () {
             .addBoolean("b2", {}, false)
             .addEnum("e1", ["a", "b", "c"])
             .addEnum("e2", ["a", "b", "c"], {}, false)
+            .addEnum("e3", [false])
+            .addEnum("e4", [1, 2])
+            .addEnum("e5", [1, true, "true"] as const)
             .addProperty("o1", subObjectSchemaBuilder)
             .addProperty("o2", subObjectSchemaBuilder, false)
             .addArray("sa1", SchemaBuilder.stringSchema())
@@ -56,6 +59,9 @@ describe("Schema Builder", function () {
                 i1: 42,
                 b1: true,
                 e1: "a",
+                e3: false,
+                e4: 2,
+                e5: "true",
                 o1: { s: "test" },
                 sa1: ["test"],
                 a1: [{ s: "test" }],
@@ -669,6 +675,22 @@ describe("Schema Builder", function () {
         expect(() =>
             schemaBuilder2.validate({
                 s: { v: "test" },
+            } as any),
+        ).to.throw()
+    })
+
+    it("should get a array subschema", function () {
+        let schemaBuilder1 = SchemaBuilder.arraySchema(SchemaBuilder.emptySchema().addString("test"))
+        let schemaBuilder2 = schemaBuilder1.getItemsSubschema()
+        expect(schemaBuilder2).to.exist
+        expect(() =>
+            schemaBuilder2.validate({
+                test: "42",
+            }),
+        ).to.not.throw()
+        expect(() =>
+            schemaBuilder2.validate({
+                test: true,
             } as any),
         ).to.throw()
     })
