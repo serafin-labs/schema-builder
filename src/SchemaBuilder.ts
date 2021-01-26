@@ -378,6 +378,14 @@ export class SchemaBuilder<T> {
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
+    addOrReplaceProperty<U, K extends keyof any, REQUIRED extends boolean = true>(
+        propertyName: K,
+        schemaBuilder: SchemaBuilder<U>,
+        isRequired?: REQUIRED,
+    ): SchemaBuilder<Combine<Omit<T, K>, U, K, REQUIRED, false>> {
+        return this.replaceProperty(propertyName as any, schemaBuilder, isRequired) as any
+    }
+
     /**
      * Add additional properties schema.
      * /!\ Many type operations can't work properly with index signatures. Try to use additionalProperties at the last step of your SchemaBuilder definition.

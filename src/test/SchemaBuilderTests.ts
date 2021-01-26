@@ -663,6 +663,24 @@ describe("Schema Builder", function () {
         ).to.throw()
     })
 
+    it("should add or replace a property", function () {
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v"))
+        let schemaBuilder2 = schemaBuilder1.addOrReplaceProperty("b", SchemaBuilder.booleanSchema()).addOrReplaceProperty("s", SchemaBuilder.booleanSchema())
+        expect(schemaBuilder2).to.exist
+        expect(() =>
+            schemaBuilder2.validate({
+                s: false,
+                b: true,
+            }),
+        ).to.not.throw()
+        expect(() =>
+            schemaBuilder2.validate({
+                s: { v: "test" },
+                b: true,
+            } as any),
+        ).to.throw()
+    })
+
     it("should get a subschema", function () {
         let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v"))
         let schemaBuilder2 = schemaBuilder1.getSubschema("s")
