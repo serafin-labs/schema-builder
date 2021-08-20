@@ -1,5 +1,7 @@
-import * as Ajv from "ajv"
+import Ajv, { Options } from "ajv"
 import * as VError from "verror"
+import * as _ from "lodash"
+import addFormats from "ajv-formats"
 
 import { JsonSchemaType } from "./JsonSchemaType"
 import {
@@ -20,7 +22,8 @@ import {
     OptionalKnownKeys,
     KnownKeys,
 } from "./TransformationTypes"
-import { JSONSchema } from "./JsonSchema"
+import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema"
+import { throughJsonSchema, cloneJSON, setRequired } from "./utils"
 
 /**
  * Represents a JSON Schema and its type.
@@ -37,7 +40,7 @@ export class SchemaBuilder<T> {
      * Initialize a new SchemaBuilder instance.
      * /!\ schemaObject must not contain references. If you have references, use something like json-schema-ref-parser library first.
      */
-    constructor(protected schemaObject: JSONSchema, protected validationConfig?: Ajv.Options) {
+    constructor(protected schemaObject: JSONSchema, protected validationConfig?: Options) {
         throughJsonSchema(this.schemaObject, (s) => {
             if ("$ref" in s) {
                 throw new VError(`Schema Builder Error: $ref can't be used to initialize a SchemaBuilder. Dereferenced the schema first.`)
@@ -47,9 +50,9 @@ export class SchemaBuilder<T> {
 
     /**
      * Function that take an inline JSON schema and deduces its type automatically!
-     * Type, enums and required have to be string literals for this function to work... So you'll probably have to use contants (ex: STRING_TYPE), use the helper 'keys' function or pass the schema itself as the generic type argument.
+     * Type, enums and required have to be string literals for this function to work... So you'll probably have to use constants (ex: STRING_TYPE), use the helper 'keys' function or pass the schema itself as the generic type argument.
      */
-    static fromJsonSchema<S>(schema: S, validationConfig?: Ajv.Options): SchemaBuilder<JsonSchemaType<S>> {
+    static fromJsonSchema<S>(schema: S, validationConfig?: Options): SchemaBuilder<JsonSchemaType<S>> {
         return new SchemaBuilder<any>(schema, validationConfig)
     }
 
@@ -130,10 +133,10 @@ export class SchemaBuilder<T> {
      */
     static enumSchema<K extends string | number | boolean, N extends boolean = false>(
         values: readonly K[],
-        schema: Pick<JSONSchema, JSONSchemaProperties> = {},
+        schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
         nullable?: boolean,
     ): N extends true ? SchemaBuilder<K | null> : SchemaBuilder<K> {
-        const types = [] as string[]
+        const types = [] as JSONSchemaTypeName[]
         for (let value of values) {
             if (typeof value === "string" && !types.find(type => type === "string")) {
                 types.push("string")
@@ -151,7 +154,7 @@ export class SchemaBuilder<T> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: types.length === 1 ? types[0] : types,
-            enum: nullable ? [...values, null] : values,
+            enum: nullable ? [...values, null] : [...values],
         }
         return new SchemaBuilder(s) as any
     }
@@ -207,6 +210,7 @@ export class SchemaBuilder<T> {
             not: cloneJSON(schemaBuilder.schemaObject),
         })
     }
+    
 
     /**
      * Make given properties optionals
@@ -218,32 +222,17 @@ export class SchemaBuilder<T> {
             )
         }
         let schemaObject = cloneJSON(this.schemaObject)
-        // determine the new set of required properties
-        let required = []
-        let existingRequired = schemaObject.required || []
-        let optionalProperties = [] // properties that are changing from required to optional
-        for (let existingRequiredProperty of existingRequired) {
-            if ((properties as readonly string[]).indexOf(existingRequiredProperty) === -1) {
-                required.push(existingRequiredProperty)
-            } else {
-                optionalProperties.push(existingRequiredProperty)
-            }
-        }
-
+        const required = _.difference(schemaObject.required ?? [], properties as readonly string[])
         // clear default values for optional properties
-        for (let optionalProperty of optionalProperties) {
-            let property = schemaObject.properties[optionalProperty]
+        for (let optionalProperty of properties) {
+            let property = schemaObject.properties?.[optionalProperty as string]
             if (property && typeof property !== "boolean") {
                 delete property.default
             }
         }
 
         // delete required array if empty
-        if (required.length === 0) {
-            delete schemaObject.required
-        } else {
-            schemaObject.required = required
-        }
+        setRequired(schemaObject, required)
         return new SchemaBuilder(schemaObject, this.validationConfig)
     }
 
@@ -317,7 +306,7 @@ export class SchemaBuilder<T> {
                     } else if (typeof propertyValue.type === "string" && propertyValue.type !== "null") {
                         propertyValue.type = [propertyValue.type, "null"]
                     }
-                    if ("enum" in propertyValue && propertyValue.enum.indexOf(null) === -1) {
+                    if ("enum" in propertyValue && propertyValue.enum?.indexOf(null) === -1) {
                         propertyValue.enum = [...propertyValue.enum, null]
                     }
                 } else {
@@ -418,7 +407,7 @@ export class SchemaBuilder<T> {
     addEnum<K extends keyof any, K2 extends string | boolean | number, REQUIRED extends boolean = true, N extends boolean = false>(
         propertyName: K,
         values: readonly K2[],
-        schema: Pick<JSONSchema, JSONSchemaStringProperties> = {},
+        schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
     ): SchemaBuilder<Combine<T, K2, K, REQUIRED, N>> {
@@ -541,9 +530,11 @@ export class SchemaBuilder<T> {
         let schemaObject = cloneJSON(this.schemaObject)
         let additionalProps = schemaObject.additionalProperties
         schemaObject.properties = schemaObject.properties || {}
-        let propertiesMap: any = {}
+        let propertiesMap: {
+            [key: string]: boolean | JSONSchema;
+        } = {}
         for (let property of properties) {
-            propertiesMap[property] = schemaObject.properties[property as string]
+            propertiesMap[property as string] = schemaObject.properties[property as string]
         }
         schemaObject.properties = propertiesMap
         if (schemaObject.required) {
@@ -559,9 +550,11 @@ export class SchemaBuilder<T> {
         } else {
             schemaObject.additionalProperties = false
             schemaObject.required = schemaObject.required || []
-            for (let additionalProperty of additionalProperties) {
-                schemaObject.properties[additionalProperty] = typeof additionalProps === "boolean" ? {} : cloneJSON(additionalProps)
-                schemaObject.required.push(additionalProperty)
+            if (additionalProps) {
+                for (let additionalProperty of additionalProperties) {
+                    schemaObject.properties[additionalProperty] = typeof additionalProps === "boolean" ? {} : cloneJSON(additionalProps)
+                    schemaObject.required.push(additionalProperty)
+                }
             }
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
@@ -905,7 +898,7 @@ export class SchemaBuilder<T> {
      * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
      * The default validation config is { coerceTypes: false, removeAdditional: false, useDefaults: true }
      */
-    configureValidation(validationConfig: Ajv.Options): this {
+    configureValidation(validationConfig: Options): this {
         this.validationConfig = validationConfig
         this.clearCache()
         return this
@@ -914,7 +907,8 @@ export class SchemaBuilder<T> {
         coerceTypes: false,
         removeAdditional: false,
         useDefaults: true,
-    } as Ajv.Options
+        strict: false
+    } as Options
     protected clearCache() {
         delete this.ajvList
         delete this.listValidationFunction
@@ -936,6 +930,7 @@ export class SchemaBuilder<T> {
         // prepare validation function
         if (!this.validationFunction) {
             this.ajv = new Ajv(this.ajvValidationConfig)
+            addFormats(this.ajv)
             this.validationFunction = this.ajv.compile(this.schemaObject)
         }
     }
@@ -946,6 +941,7 @@ export class SchemaBuilder<T> {
         // prepare validation function
         if (!this.listValidationFunction) {
             this.ajvList = new Ajv(this.ajvValidationConfig)
+            addFormats(this.ajvList)
             this.ajvList.addSchema(this.schemaObject, "schema")
             this.listValidationFunction = this.ajvList.compile({
                 type: "array",
@@ -974,60 +970,6 @@ function validationError(ajvErrorsText: string, errorsDetails: any) {
     return new VError(opt, `Invalid parameters: ${ajvErrorsText}`)
 }
 
-function throughJsonSchema(schema: JSONSchema | JSONSchema[], action: (schema: JSONSchema) => void) {
-    if (Array.isArray(schema)) {
-        schema.forEach((s) => {
-            throughJsonSchema(s, action)
-        })
-    } else {
-        const type = typeof schema
-        if (schema == null || type != "object") {
-            return
-        }
-        action(schema)
-        if (schema.properties) {
-            for (let property in schema.properties) {
-                throughJsonSchema(schema.properties[property] as JSONSchema, action)
-            }
-        }
-        if (schema.oneOf) {
-            schema.oneOf.forEach((s) => throughJsonSchema(s as JSONSchema[], action))
-        }
-        if (schema.allOf) {
-            schema.allOf.forEach((s) => throughJsonSchema(s as JSONSchema[], action))
-        }
-        if (schema.anyOf) {
-            schema.anyOf.forEach((s) => throughJsonSchema(s as JSONSchema[], action))
-        }
-        if (schema.items) {
-            throughJsonSchema(schema.items as JSONSchema, action)
-        }
-        if (schema.not) {
-            throughJsonSchema(schema.not as JSONSchema, action)
-        }
-        if (schema.additionalProperties && typeof schema.additionalProperties !== "boolean") {
-            throughJsonSchema(schema.additionalProperties, action)
-        }
-    }
-    return schema
-}
-
-/**
- * Utility method to deep clone JSON objects
- */
-function cloneJSON(o: any): any {
-    if (typeof o !== "object" || o === null) {
-        return o
-    }
-    if (Array.isArray(o)) {
-        return o.map(cloneJSON)
-    }
-    let r = {} as any
-    for (let key in o) {
-        r[key] = cloneJSON(o[key])
-    }
-    return r
-}
 
 export type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "examples" | "readOnly" | "writeOnly"
 
@@ -1044,6 +986,8 @@ export type JSONSchemaNumberProperties =
     | "examples"
     | "readOnly"
     | "writeOnly"
+
+export type JSONSchemaEnumProperties = "title" | "description" | "default" | "examples" | "readOnly" | "writeOnly"
 
 export type JSONSchemaProperties = "description" | "default" | "examples" | "readOnly" | "writeOnly"
 
