@@ -71,16 +71,24 @@ describe("Schema Builder", function () {
     })
 
     it("should change validation config and copy it throught transformations", function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").configureValidation({ coerceTypes: false }).addNumber("n")
-        expect(schemaBuilder).to.exist
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addString("s").addNumber("n")
+        let schemaBuilder2 = schemaBuilder1.configureValidation({ coerceTypes: true })
+        expect(schemaBuilder1).to.exist
+        expect(schemaBuilder2).to.exist
         expect(() =>
-            schemaBuilder.validate({
+            schemaBuilder2.validate({
                 n: 42,
                 s: "test",
             }),
         ).to.not.throw()
         expect(() =>
-            schemaBuilder.validate({
+            schemaBuilder2.validate({
+                n: "42",
+                s: "test",
+            } as any),
+        ).to.not.throw()
+        expect(() =>
+            schemaBuilder1.validate({
                 n: "42",
                 s: "test",
             } as any),
@@ -665,11 +673,11 @@ describe("Schema Builder", function () {
 
     it("should deep replace a property", function () {
         let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v"))
-        let schemaBuilder2 = schemaBuilder1.replaceProperty("s", s => s.replaceProperty("v", SchemaBuilder.integerSchema()))
+        let schemaBuilder2 = schemaBuilder1.replaceProperty("s", (s) => s.replaceProperty("v", SchemaBuilder.integerSchema()))
         expect(schemaBuilder2).to.exist
         expect(() =>
             schemaBuilder2.validate({
-                s: {v: 42},
+                s: { v: 42 },
             }),
         ).to.not.throw()
         expect(() =>

@@ -138,13 +138,13 @@ export class SchemaBuilder<T> {
     ): N extends true ? SchemaBuilder<K | null> : SchemaBuilder<K> {
         const types = [] as JSONSchemaTypeName[]
         for (let value of values) {
-            if (typeof value === "string" && !types.find(type => type === "string")) {
+            if (typeof value === "string" && !types.find((type) => type === "string")) {
                 types.push("string")
             }
-            if (typeof value === "boolean" && !types.find(type => type === "boolean")) {
+            if (typeof value === "boolean" && !types.find((type) => type === "boolean")) {
                 types.push("boolean")
             }
-            if (typeof value === "number" && !types.find(type => type === "number")) {
+            if (typeof value === "number" && !types.find((type) => type === "number")) {
                 types.push("number")
             }
         }
@@ -210,7 +210,6 @@ export class SchemaBuilder<T> {
             not: cloneJSON(schemaBuilder.schemaObject),
         })
     }
-    
 
     /**
      * Make given properties optionals
@@ -258,11 +257,9 @@ export class SchemaBuilder<T> {
     /**
      * Make all properties optionals and remove their default values
      */
-    toOptionals(): SchemaBuilder<
-        {
-            [P in keyof T]?: T[P]
-        }
-    > {
+    toOptionals(): SchemaBuilder<{
+        [P in keyof T]?: T[P]
+    }> {
         let schemaObject = cloneJSON(this.schemaObject)
         delete schemaObject.required
         // remove default values for optional properties
@@ -532,7 +529,7 @@ export class SchemaBuilder<T> {
         let additionalProps = schemaObject.additionalProperties
         schemaObject.properties = schemaObject.properties || {}
         let propertiesMap: {
-            [key: string]: boolean | JSONSchema;
+            [key: string]: boolean | JSONSchema
         } = {}
         for (let property of properties) {
             propertiesMap[property as string] = schemaObject.properties[property as string]
@@ -794,9 +791,7 @@ export class SchemaBuilder<T> {
      */
     getItemsSubschema() {
         if (!this.schemaObject || this.schemaObject.type !== "array" || !this.schemaObject.items || Array.isArray(this.schemaObject.items)) {
-            throw new VError(
-                `Schema Builder Error: 'getItemsSubschema' can only be used with an array schema with non-array items`,
-            )
+            throw new VError(`Schema Builder Error: 'getItemsSubschema' can only be used with an array schema with non-array items`)
         } else {
             return new SchemaBuilder<T extends Array<infer ITEMS> ? ITEMS : never>(this.schemaObject.items as JSONSchema)
         }
@@ -906,7 +901,7 @@ export class SchemaBuilder<T> {
         coerceTypes: false,
         removeAdditional: false,
         useDefaults: true,
-        strict: false
+        strict: false,
     } as Options
     protected clearCache() {
         delete this.ajvList
@@ -968,7 +963,6 @@ function validationError(ajvErrorsText: string, errorsDetails: any) {
     }
     return new VError(opt, `Invalid parameters: ${ajvErrorsText}`)
 }
-
 
 export type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "examples" | "readOnly" | "writeOnly"
 

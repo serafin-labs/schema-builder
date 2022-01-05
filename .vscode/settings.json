@@ -15,5 +15,7 @@
     "coverage-gutters.showGutterCoverage": false,
     "coverage-gutters.showRulerCoverage": true,
     "coverage-gutters.altSfCompare": true,
-    "coverage-gutters.lcovname": "lib/coverage/lcov.info"
+    "coverage-gutters.lcovname": "lib/coverage/lcov.info",
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
 }

@@ -140,7 +140,11 @@ export type AllOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any
  */
 export type RequiredKnownKeys<T> = {
     [K in keyof T]: {} extends Pick<T, K> ? never : K
-} extends { [_ in keyof T]: infer U } ? ({} extends U ? never : U) : never
+} extends { [_ in keyof T]: infer U }
+    ? {} extends U
+        ? never
+        : U
+    : never
 
 /**
  * Type that extract the optional properties names from an object
@@ -148,7 +152,11 @@ export type RequiredKnownKeys<T> = {
  */
 export type OptionalKnownKeys<T> = {
     [K in keyof T]: string extends K ? never : number extends K ? never : {} extends Pick<T, K> ? K : never
-} extends { [_ in keyof T]: infer U } ? ({} extends U ? never : U) : never
+} extends { [_ in keyof T]: infer U }
+    ? {} extends U
+        ? never
+        : U
+    : never
 
 /**
  * Type that extract all the keys from an object without the index signature
@@ -156,4 +164,6 @@ export type OptionalKnownKeys<T> = {
  */
 export type KnownKeys<T> = {
     [K in keyof T]: string extends K ? never : number extends K ? never : K
-  } extends { [_ in keyof T]: infer U } ? U : never
+} extends { [_ in keyof T]: infer U }
+    ? U
+    : never
