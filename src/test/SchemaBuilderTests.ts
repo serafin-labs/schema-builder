@@ -663,6 +663,22 @@ describe("Schema Builder", function () {
         ).to.throw()
     })
 
+    it("should deep replace a property", function () {
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v"))
+        let schemaBuilder2 = schemaBuilder1.replaceProperty("s", s => s.replaceProperty("v", SchemaBuilder.integerSchema()))
+        expect(schemaBuilder2).to.exist
+        expect(() =>
+            schemaBuilder2.validate({
+                s: {v: 42},
+            }),
+        ).to.not.throw()
+        expect(() =>
+            schemaBuilder2.validate({
+                s: { v: "test" },
+            } as any),
+        ).to.throw()
+    })
+
     it("should add or replace a property", function () {
         let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v"))
         let schemaBuilder2 = schemaBuilder1.addOrReplaceProperty("b", SchemaBuilder.booleanSchema()).addOrReplaceProperty("s", SchemaBuilder.booleanSchema())

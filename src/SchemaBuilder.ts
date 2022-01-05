@@ -348,9 +348,9 @@ export class SchemaBuilder<T> {
      */
     replaceProperty<U, K extends keyof T, REQUIRED extends boolean = true>(
         propertyName: K,
-        schemaBuilder: SchemaBuilder<U>,
+        schemaBuilderResolver: SchemaBuilder<U> | ((s: SchemaBuilder<T[K]>) => SchemaBuilder<U>),
         isRequired?: REQUIRED,
-    ): SchemaBuilder<Combine<Omit<T, K>, U, K, REQUIRED, false>> {
+    ): SchemaBuilder<{ [P in keyof Combine<Omit<T, K>, U, K, REQUIRED, false>]: Combine<Omit<T, K>, U, K, REQUIRED, false>[P] }> {
         if (!this.isObjectSchema) {
             throw new VError(`Schema Builder Error: you can only replace properties of an object schema`)
         }
@@ -359,6 +359,7 @@ export class SchemaBuilder<T> {
         if (schemaObject.required) {
             schemaObject.required = schemaObject.required.filter((p: string) => p !== propertyName)
         }
+        const schemaBuilder = typeof schemaBuilderResolver === "function" ? schemaBuilderResolver(this.getSubschema(propertyName)) : schemaBuilderResolver
         schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
         if (isRequired === true || isRequired === undefined) {
             schemaObject.required = schemaObject.required || []
