@@ -1,7 +1,7 @@
 const path = require('path');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin')
 const nodeExternals = require('webpack-node-externals');
-const WebpackShellPlugin = require('webpack-shell-plugin');
+const WebpackShellPlugin = require('webpack-shell-plugin-next');
 
 // detect production/development mode
 console.log(`Building for ${process.env.NODE_ENV}`);
@@ -44,7 +44,13 @@ var configuration = {
     },
     plugins: [
         new CleanWebpackPlugin(),
-        ...(isProduction ? [] : [new WebpackShellPlugin({ onBuildExit: ['npm test'] })])
+        ...(isProduction ? [] : [new WebpackShellPlugin({
+            onDoneWatch: {
+                scripts: ['npm test'],
+                blocking: false,
+                parallel: true
+            },
+        })])
     ]
 };
 
