@@ -830,24 +830,24 @@ export class SchemaBuilder<T> {
         return "oneOf" in this.schemaObject || "allOf" in this.schemaObject || "anyOf" in this.schemaObject || "not" in this.schemaObject
     }
 
-    get properties(): T extends object ? KnownKeys<T>[] : null {
+    get properties(): string[] | null {
         if (this.isObjectSchema && !this.hasSchemasCombinationKeywords) {
-            return Object.keys(this.schemaObject.properties || {}) as any
+            return Object.keys(this.schemaObject.properties || {})
         }
-        return null as any
+        return null
     }
 
-    get requiredProperties(): T extends object ? RequiredKnownKeys<T>[] : null {
+    get requiredProperties(): string[] | null {
         if (this.isObjectSchema && !this.hasSchemasCombinationKeywords) {
-            return this.schemaObject.required ? ([...this.schemaObject.required] as any) : []
+            return this.schemaObject.required ? [...this.schemaObject.required] : []
         }
-        return null as any
+        return null
     }
 
-    get optionalProperties(): T extends object ? OptionalKnownKeys<T>[] : null {
+    get optionalProperties(): string[] | null {
         const properties = this.properties
-        const required = (this.requiredProperties as any) as (keyof T)[]
-        return properties ? properties.filter((property) => required && required.indexOf(property) === -1) : (null as any)
+        const required = this.requiredProperties
+        return properties ? properties.filter((property) => required && required.indexOf(property) === -1) : null
     }
 
     /**
@@ -896,13 +896,11 @@ export class SchemaBuilder<T> {
     protected listValidationFunction: any
 
     /**
-     * Change the default Ajv configuration to use the given values. Any cached validation function is cleared.
+     * Change the default Ajv configuration to use the given values.
      * The default validation config is { coerceTypes: false, removeAdditional: false, useDefaults: true }
      */
-    configureValidation(validationConfig: Options): this {
-        this.validationConfig = validationConfig
-        this.clearCache()
-        return this
+    configureValidation(validationConfig: Options) {
+        return new SchemaBuilder<T>(cloneJSON(this.schemaObject), validationConfig)
     }
     protected defaultValidationConfig = {
         coerceTypes: false,

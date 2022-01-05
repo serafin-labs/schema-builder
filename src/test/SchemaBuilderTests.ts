@@ -731,9 +731,9 @@ describe("Schema Builder", function () {
 
     it("should get schema properties", function () {
         let schemaBuilder = SchemaBuilder.emptySchema().addString("req").addNumber("opt", {}, false).addAdditionalProperties()
-        const properties: ("req" | "opt")[] = schemaBuilder.properties
-        const requiredProperties: "req"[] = schemaBuilder.requiredProperties
-        const optionalProperties: "opt"[] = schemaBuilder.optionalProperties
+        const properties = schemaBuilder.properties
+        const requiredProperties = schemaBuilder.requiredProperties
+        const optionalProperties = schemaBuilder.optionalProperties
         expect(properties).to.eql(["req", "opt"])
         expect(requiredProperties).to.eql(["req"])
         expect(optionalProperties).to.eql(["opt"])
