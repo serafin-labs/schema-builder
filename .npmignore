@@ -5,11 +5,15 @@
 /.gitignore
 /.npmignore
 /.history
+/.nyc_output
+/.mycrc
+/.prettierrc.json
 /node_modules
 /npm-debug.log
 .DS_Store
 webpack.config.js
 tsconfig.json
+tslint.json
 docker-compose.*
 gulpfile.js
 /lib/test
