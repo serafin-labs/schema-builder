@@ -6,7 +6,7 @@
 /.npmignore
 /.history
 /.nyc_output
-/.mycrc
+/.nycrc
 /.prettierrc.json
 /node_modules
 /npm-debug.log
