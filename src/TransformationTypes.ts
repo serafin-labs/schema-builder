@@ -1,8 +1,9 @@
-/**
- * This file contains all type transformations used by schema builder
- */
-
 import { SchemaBuilder } from "./SchemaBuilder"
+
+/**
+ * Shortcut for Record<string, unknown> that is commonly used with schemas
+ */
+export type SimpleObject = Record<string, unknown>
 
 /**
  * T & U but where overlapping properties use the type from U only.

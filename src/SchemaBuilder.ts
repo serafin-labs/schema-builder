@@ -50,10 +50,10 @@ export class SchemaBuilder<T> {
 
     /**
      * Function that take an inline JSON schema and deduces its type automatically!
-     * Type, enums and required have to be string literals for this function to work... So you'll probably have to use constants (ex: STRING_TYPE), use the helper 'keys' function or pass the schema itself as the generic type argument.
+     * The schema has to be provided as a literal using `as const`
      */
-    static fromJsonSchema<S>(schema: S, validationConfig?: Options): SchemaBuilder<JsonSchemaType<S>> {
-        return new SchemaBuilder<any>(schema, validationConfig)
+    static fromJsonSchema<S>(schema: S, validationConfig?: Options) {
+        return new SchemaBuilder<JsonSchemaType<S>>(schema, validationConfig)
     }
 
     /**
@@ -903,12 +903,6 @@ export class SchemaBuilder<T> {
         useDefaults: true,
         strict: false,
     } as Options
-    protected clearCache() {
-        delete this.ajvList
-        delete this.listValidationFunction
-        delete this.ajv
-        delete this.validationFunction
-    }
 
     get ajvValidationConfig() {
         return {

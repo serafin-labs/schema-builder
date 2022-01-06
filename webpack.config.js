@@ -10,7 +10,7 @@ const isProduction = process.env.NODE_ENV === "production"
 var configuration = {
     entry: {
         index: "./src/index.ts",
-        test: "./src/test/SchemaBuilderTests.ts",
+        test: "./src/test/index.ts",
     },
     target: "node",
     externals: [nodeExternals()],
