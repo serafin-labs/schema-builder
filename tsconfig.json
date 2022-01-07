@@ -1,15 +1,11 @@
 {
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules"
-    ],
+    "include": ["src/**/*"],
+    "exclude": ["node_modules"],
     "compilerOptions": {
         "sourceMap": true,
         "declaration": true,
         "declarationDir": "./lib",
-        "module": "esnext",
+        "module": "commonjs",
         "moduleResolution": "node",
         "target": "es5",
         "strict": true
