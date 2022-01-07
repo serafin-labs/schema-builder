@@ -1,5 +1,5 @@
 import { expect } from "chai"
-import { SchemaBuilder } from "../"
+import { SchemaBuilder } from ".."
 import { JSONSchema } from "../JsonSchema"
 
 describe("Schema Builder", function () {
