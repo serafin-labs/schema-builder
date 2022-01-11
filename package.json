@@ -50,7 +50,7 @@
         "webpack-shell-plugin-next": "^2.2.2"
     },
     "scripts": {
-        "test": "nyc mocha --require ts-node/register --require source-map-support/register --recursive ./src/test/**/*.spec.ts",
+        "test": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\"}' nyc mocha --require ts-node/register --require source-map-support/register --recursive ./src/test/**/*.spec.ts",
         "predev": "npm install",
         "dev": "webpack --mode development",
         "build": "webpack --mode production",

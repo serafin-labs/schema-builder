@@ -13,6 +13,9 @@
                 "--colors",
                 "${workspaceFolder}/src/test/**/*.spec.ts"
             ],
+            "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\"}"
+            },
             "internalConsoleOptions": "openOnSessionStart",
             "name": "Mocha Tests",
             "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",

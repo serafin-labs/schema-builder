@@ -41,6 +41,11 @@ export interface PropertyAccessor<D extends SimpleObject, V> {
 }
 
 /**
+ * Resolve a property accessor from the initial data to the desired property
+ */
+export type PropertyResolver<D extends SimpleObject, V> = (pa: PropertyAccessor<D, D>) => PropertyAccessor<D, V>
+
+/**
  * Create a property accessor based on a schema
  * @param schema The initial object schema to start the property accessor from
  */
