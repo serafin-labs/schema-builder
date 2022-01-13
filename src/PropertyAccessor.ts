@@ -1,5 +1,4 @@
-import { SchemaBuilder } from "."
-import { SimpleObject } from "./TransformationTypes"
+import { KeysOfType, StringKeys } from "./TransformationTypes"
 
 /**
  * Get a deep property corresponding to the path
@@ -11,7 +10,7 @@ function get(path: (string | number)[], data: any) {
 /**
  * Set a deep property and ensure that any object/array along the path is copied or initialized
  */
-function set(path: (string | number)[], data: SimpleObject, value: any) {
+function set(path: (string | number)[], data: any, value: any) {
     data = { ...data }
     let current: any = data
     for (let i = 0; i < path.length; ++i) {
@@ -30,10 +29,10 @@ function set(path: (string | number)[], data: SimpleObject, value: any) {
  * Interface of a property accessor function
  * It simplifies getting and setting deeply nested properties while maintaining type checking
  */
-export interface PropertyAccessor<D extends SimpleObject, V> {
-    <K extends Exclude<keyof V, symbol>>(k: V extends any[] ? number : V extends SimpleObject ? K : never): PropertyAccessor<
+export interface PropertyAccessor<D, V> {
+    <K extends StringKeys<V>>(k: V extends any[] ? number : V extends object ? K : never): PropertyAccessor<
         D,
-        V extends any[] ? V[number] : V extends SimpleObject ? V[K] : never
+        V extends any[] ? V[number] : V extends object ? V[K] : never
     >
     get(data: D): V
     set(data: D, value: V): D
@@ -41,18 +40,17 @@ export interface PropertyAccessor<D extends SimpleObject, V> {
 }
 
 /**
- * Resolve a property accessor from the initial data to the desired property
+ * Resolver the represent the path from D to V to create a PropertyAccessor from it
  */
-export type PropertyResolver<D extends SimpleObject, V> = (pa: PropertyAccessor<D, D>) => PropertyAccessor<D, V>
+export type PropertyAccessorResolver<D, V> = KeysOfType<D, V> | ((pa: PropertyAccessor<D, D>) => PropertyAccessor<D, V>)
 
 /**
- * Create a property accessor based on a schema
- * @param schema The initial object schema to start the property accessor from
+ * Create a property accessor D -> D
  */
-export function createPropertyAccessor<D extends SimpleObject>(schema?: SchemaBuilder<D>) {
+export function createPropertyAccessor<D>() {
     function buildPropertyAccess<V>(path: (string | number)[]): PropertyAccessor<D, V> {
-        function propertyAccess<K extends Exclude<keyof V, symbol>>(property: V extends any[] ? number : V extends SimpleObject ? K : never) {
-            return buildPropertyAccess<V extends any[] ? V[number] : V extends SimpleObject ? V[K] : never>([...path, property])
+        function propertyAccess<K extends StringKeys<V>>(property: V extends any[] ? number : V extends object ? K : never) {
+            return buildPropertyAccess<V extends any[] ? V[number] : V extends object ? V[K] : never>([...path, property])
         }
         propertyAccess.get = (data: D) => get(path, data) as V
         propertyAccess.set = (data: D, value: V) => set(path, data, value) as D
@@ -60,4 +58,15 @@ export function createPropertyAccessor<D extends SimpleObject>(schema?: SchemaBu
         return propertyAccess
     }
     return buildPropertyAccess<D>([])
+}
+
+/**
+ * Run the given PropertyAccessorResolver to transform it into a PropertyAccessor D -> V
+ */
+export function resolvePropertyAccessor<D, V>(propertyResolver: PropertyAccessorResolver<D, V>) {
+    const pa = createPropertyAccessor<D>()
+    if (typeof propertyResolver === "string") {
+        return pa(propertyResolver as any) as PropertyAccessor<D, V>
+    }
+    return propertyResolver(pa)
 }

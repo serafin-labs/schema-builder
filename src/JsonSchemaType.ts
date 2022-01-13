@@ -1,5 +1,5 @@
 /**
- * This file contains a set of special conditional types used to transform a litteral JSON schema into the corresponding typescript type.
+ * This file contains a set of special conditional types used to transform a literal JSON schema into the corresponding typescript type.
  */
 
 /**

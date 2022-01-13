@@ -24,7 +24,9 @@ export type DeepPartial<T> = {
         ? Array<DeepPartial<U>>
         : T[P] extends ReadonlyArray<infer U>
         ? ReadonlyArray<DeepPartial<U>>
-        : DeepPartial<T[P]>
+        : T[P] extends object
+        ? { [P2 in keyof DeepPartial<T[P]>]: DeepPartial<T[P]>[P2] }
+        : T[P]
 }
 
 /**
@@ -168,3 +170,13 @@ export type KnownKeys<T> = {
 } extends { [_ in keyof T]: infer U }
     ? U
     : never
+
+/**
+ * Similar to keyof T but only keep string properties
+ */
+export type StringKeys<T> = Extract<keyof T, string>
+
+/**
+ * Extract the string keys of T where the value match the type C
+ */
+export type KeysOfType<T, C> = { [P in StringKeys<T>]: T[P] extends C ? P : never }[StringKeys<T>]
