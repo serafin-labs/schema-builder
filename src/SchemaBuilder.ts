@@ -822,6 +822,13 @@ export class SchemaBuilder<T> {
     }
 
     /**
+     * true if the schema represent an array
+     */
+    get isArraySchema() {
+        return this.schemaObject.type === "array" && !("properties" in this.schemaObject)
+    }
+
+    /**
      * True if the schema represents an objet that can have additional properties
      */
     get hasAdditionalProperties() {

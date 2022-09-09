@@ -1,6 +1,8 @@
 import { expect } from "chai"
 import { SchemaBuilder } from "../SchemaBuilder"
 import { createPropertyAccessor } from "../PropertyAccessor"
+import { pipeline } from "stream"
+import { JSONSchema } from "../JsonSchema"
 
 describe("Property Accessor", function () {
     it("should get and set a top level property", function () {
@@ -92,5 +94,34 @@ describe("Property Accessor", function () {
         expect(pa.path).eqls(["o"])
         expect(pa.get(data)).to.equals(42)
         expect(pa.set(data, 43)).to.eqls({ o: { n: 43, s: "test" } })
+    })
+
+    it("should build a path to a tuple element", function () {
+        const pa = createPropertyAccessor<{ a: [string, number, boolean] }>().a[1]
+        expect(pa.set({ a: ["test", 42, true] }, 43)).to.eqls({ a: ["test", 43, true] })
+    })
+
+    it("should get a sub schema", function () {
+        const schema = SchemaBuilder.emptySchema({}).addProperty(
+            "o",
+            SchemaBuilder.emptySchema({}).addArray(
+                "a",
+                SchemaBuilder.emptySchema({}).addNumber("n", { description: "A number" }).addString("s", { description: "A string" }),
+            ),
+        )
+        const pa1 = createPropertyAccessor(schema).o.a[0].n
+        expect(pa1.schema.schema.description).to.equals("A number")
+        const pa2 = createPropertyAccessor(schema)("o")("a")(0)("s")
+        expect(pa2.schema.schema.description).to.equals("A string")
+    })
+
+    it("should narrow a union type schema", function () {
+        const schema1 = SchemaBuilder.emptySchema({}).addString("s", { description: "A string" })
+        const schema2 = SchemaBuilder.emptySchema({}).addNumber("n")
+        const schema3 = SchemaBuilder.emptySchema({}).addProperty("o", SchemaBuilder.oneOf(schema1, schema2))
+
+        const pa = createPropertyAccessor(schema3).o.narrow(() => schema1).s
+        expect(pa.path).eqls(["o", "s"])
+        expect(pa.schema.schema.description).to.equals("A string")
     })
 })
