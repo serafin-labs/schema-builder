@@ -18,6 +18,7 @@ import {
     Nullable,
     OneOf,
     AllOf,
+    Expand,
 } from "./TransformationTypes"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema"
 import { throughJsonSchema, cloneJSON, setRequired } from "./utils"
@@ -51,7 +52,7 @@ export class SchemaBuilder<T> {
      * The schema has to be provided as a literal using `as const`
      */
     static fromJsonSchema<S>(schema: S, validationConfig?: Options) {
-        return new SchemaBuilder<JsonSchemaType<S>>(schema, validationConfig)
+        return new SchemaBuilder<JsonSchemaType<S>>(schema as any, validationConfig)
     }
 
     /**
@@ -212,7 +213,7 @@ export class SchemaBuilder<T> {
     /**
      * Make given properties optionals
      */
-    setOptionalProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<{ [P in keyof PartialProperties<T, K>]: PartialProperties<T, K>[P] }> {
+    setOptionalProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<Expand<PartialProperties<T, K>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -236,7 +237,7 @@ export class SchemaBuilder<T> {
     /**
      * Make given properties required
      */
-    setRequiredProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<{ [P in keyof RequiredProperties<T, K>]: RequiredProperties<T, K>[P] }> {
+    setRequiredProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<Expand<RequiredProperties<T, K>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'setRequiredProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -271,7 +272,7 @@ export class SchemaBuilder<T> {
      * Make all properties and subproperties optionals
      * Remove all default values
      */
-    toDeepOptionals(): SchemaBuilder<{ [P in keyof DeepPartial<T>]: DeepPartial<T>[P] }> {
+    toDeepOptionals(): SchemaBuilder<Expand<DeepPartial<T>>> {
         let schemaObject = cloneJSON(this.schemaObject)
         throughJsonSchema(schemaObject, (s) => {
             delete s.required
@@ -284,7 +285,7 @@ export class SchemaBuilder<T> {
     /**
      * Make all optional properties of this schema nullable
      */
-    toNullable(): SchemaBuilder<{ [P in keyof Nullable<T>]: Nullable<T>[P] }> {
+    toNullable(): SchemaBuilder<Expand<Nullable<T>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'toNullable' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -321,14 +322,14 @@ export class SchemaBuilder<T> {
         propertyName: K,
         schemaBuilder: SchemaBuilder<U>,
         isRequired?: REQUIRED,
-    ): SchemaBuilder<{ [P in keyof Combine<T, U, K, REQUIRED, false>]: Combine<T, U, K, REQUIRED, false>[P] }> {
+    ): SchemaBuilder<Expand<Combine<T, U, K, REQUIRED, false>>> {
         if (!this.isObjectSchema) {
             throw new VError(`Schema Builder Error: you can only add properties to an object schema`)
         }
         let schemaObject = cloneJSON(this.schemaObject)
         schemaObject.properties = schemaObject.properties || {}
         if (propertyName in schemaObject.properties) {
-            throw new VError(`Schema Builder Error: '${propertyName}' already exists in ${schemaObject.title || "this"} schema`)
+            throw new VError(`Schema Builder Error: '${propertyName as string}' already exists in ${schemaObject.title || "this"} schema`)
         }
         schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
         if (isRequired === true || isRequired === undefined) {
@@ -345,7 +346,7 @@ export class SchemaBuilder<T> {
         propertyName: K,
         schemaBuilderResolver: SchemaBuilder<U> | ((s: SchemaBuilder<T[K]>) => SchemaBuilder<U>),
         isRequired?: REQUIRED,
-    ): SchemaBuilder<{ [P in keyof Combine<Omit<T, K>, U, K, REQUIRED, false>]: Combine<Omit<T, K>, U, K, REQUIRED, false>[P] }> {
+    ): SchemaBuilder<Expand<Combine<Omit<T, K>, U, K, REQUIRED, false>>> {
         if (!this.isObjectSchema) {
             throw new VError(`Schema Builder Error: you can only replace properties of an object schema`)
         }
@@ -370,7 +371,7 @@ export class SchemaBuilder<T> {
         propertyName: K,
         schemaBuilder: SchemaBuilder<U>,
         isRequired?: REQUIRED,
-    ): SchemaBuilder<{ [P in keyof Combine<Omit<T, K>, U, K, REQUIRED, false>]: Combine<Omit<T, K>, U, K, REQUIRED, false>[P] }> {
+    ): SchemaBuilder<Expand<Combine<Omit<T, K>, U, K, REQUIRED, false>>> {
         return this.replaceProperty(propertyName as any, schemaBuilder, isRequired) as any
     }
 
@@ -396,7 +397,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaStringProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
-    ): SchemaBuilder<{ [P in keyof Combine<T, string, K, REQUIRED, N>]: Combine<T, string, K, REQUIRED, N>[P] }> {
+    ): SchemaBuilder<Expand<Combine<T, string, K, REQUIRED, N>>> {
         return this.addProperty(propertyName, SchemaBuilder.stringSchema(schema, nullable), isRequired) as any
     }
 
@@ -409,7 +410,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
-    ): SchemaBuilder<{ [P in keyof Combine<T, K2, K, REQUIRED, N>]: Combine<T, K2, K, REQUIRED, N>[P] }> {
+    ): SchemaBuilder<Expand<Combine<T, K2, K, REQUIRED, N>>> {
         return this.addProperty(propertyName, SchemaBuilder.enumSchema(values, schema, nullable), isRequired) as any
     }
 
@@ -421,7 +422,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
-    ): SchemaBuilder<{ [P in keyof Combine<T, number, K, REQUIRED, N>]: Combine<T, number, K, REQUIRED, N>[P] }> {
+    ): SchemaBuilder<Expand<Combine<T, number, K, REQUIRED, N>>> {
         return this.addProperty(propertyName, SchemaBuilder.numberSchema(schema, nullable), isRequired) as any
     }
 
@@ -433,7 +434,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
-    ): SchemaBuilder<{ [P in keyof Combine<T, number, K, REQUIRED, N>]: Combine<T, number, K, REQUIRED, N>[P] }> {
+    ): SchemaBuilder<Expand<Combine<T, number, K, REQUIRED, N>>> {
         return this.addProperty(propertyName, SchemaBuilder.integerSchema(schema, nullable), isRequired) as any
     }
 
@@ -445,7 +446,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
-    ): SchemaBuilder<{ [P in keyof Combine<T, boolean, K, REQUIRED, N>]: Combine<T, boolean, K, REQUIRED, N>[P] }> {
+    ): SchemaBuilder<Expand<Combine<T, boolean, K, REQUIRED, N>>> {
         return this.addProperty(propertyName, SchemaBuilder.booleanSchema(schema, nullable), isRequired) as any
     }
 
@@ -458,17 +459,14 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
-    ): SchemaBuilder<{ [P in keyof Combine<T, U[], K, REQUIRED, N>]: Combine<T, U[], K, REQUIRED, N>[P] }> {
+    ): SchemaBuilder<Expand<Combine<T, U[], K, REQUIRED, N>>> {
         return this.addProperty(propertyName, SchemaBuilder.arraySchema(items, schema, nullable), isRequired) as any
     }
 
     /**
      * Rename the given property. The property schema remains unchanged.
      */
-    renameProperty<K extends keyof T, K2 extends keyof any>(
-        propertyName: K,
-        newPropertyName: K2,
-    ): SchemaBuilder<{ [P in keyof Rename<T, K, K2>]: Rename<T, K, K2>[P] }> {
+    renameProperty<K extends keyof T, K2 extends keyof any>(propertyName: K, newPropertyName: K2): SchemaBuilder<Expand<Rename<T, K, K2>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'renameProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -565,14 +563,14 @@ export class SchemaBuilder<T> {
     /**
      * Filter the schema to contains everything except the given properties.
      */
-    omitProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<{ [P in keyof Omit<T, K>]: Omit<T, K>[P] }> {
+    omitProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<Expand<Omit<T, K>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'omitProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
         let p = Object.keys(this.schemaObject.properties || {}).filter((k) => (properties as readonly string[]).indexOf(k) === -1)
-        return this.pickProperties(p as any)
+        return this.pickProperties(p as any) as any
     }
 
     /**
@@ -584,7 +582,7 @@ export class SchemaBuilder<T> {
     transformProperties<U, K extends keyof T>(
         schemaBuilder: SchemaBuilder<U>,
         propertyNames?: readonly K[],
-    ): SchemaBuilder<{ [P in keyof TransformProperties<T, K, U>]: TransformProperties<T, K, U>[P] }> {
+    ): SchemaBuilder<Expand<TransformProperties<T, K, U>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'transformProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -608,9 +606,7 @@ export class SchemaBuilder<T> {
      *
      * @param propertyNames properties that will have the alternative array type
      */
-    transformPropertiesToArray<K extends keyof T>(
-        propertyNames?: readonly K[],
-    ): SchemaBuilder<{ [P in keyof TransformPropertiesToArray<T, K>]: TransformPropertiesToArray<T, K>[P] }> {
+    transformPropertiesToArray<K extends keyof T>(propertyNames?: readonly K[]): SchemaBuilder<Expand<TransformPropertiesToArray<T, K>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'transformPropertiesToArray' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -637,9 +633,7 @@ export class SchemaBuilder<T> {
      *
      * @param propertyNames properties that will be unwrapped
      */
-    unwrapArrayProperties<K extends keyof T>(
-        propertyNames?: readonly K[],
-    ): SchemaBuilder<{ [P in keyof UnwrapArrayProperties<T, K>]: UnwrapArrayProperties<T, K>[P] }> {
+    unwrapArrayProperties<K extends keyof T>(propertyNames?: readonly K[]): SchemaBuilder<Expand<UnwrapArrayProperties<T, K>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'unwrapArrayProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -675,7 +669,7 @@ export class SchemaBuilder<T> {
      * Merge all properties from the given schema into this one. If a property name is already used, a allOf statement is used.
      * This method only copy properties.
      */
-    intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof (T & T2)]: (T & T2)[P] }> {
+    intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Expand<T & T2>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'intersectProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -714,7 +708,7 @@ export class SchemaBuilder<T> {
      * Merge all properties from the given schema into this one. If a property name is already used, a anyOf statement is used.
      * This method only copy properties.
      */
-    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof Merge<T, T2>]: Merge<T, T2>[P] }> {
+    mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Expand<Merge<T, T2>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
@@ -752,7 +746,7 @@ export class SchemaBuilder<T> {
      * Overwrite all properties from the given schema into this one. If a property name is already used, the new type override the existing one.
      * This method only copy properties.
      */
-    overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof Overwrite<T, T2>]: Overwrite<T, T2>[P] }> {
+    overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<Expand<Overwrite<T, T2>>> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
                 `Schema Builder Error: 'overwriteProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
