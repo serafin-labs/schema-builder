@@ -21,6 +21,7 @@ import {
 } from "./TransformationTypes"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema"
 import { throughJsonSchema, cloneJSON, setRequired } from "./utils"
+import { createPropertyAccessor } from "./PropertyAccessor"
 
 /**
  * Represents a JSON Schema and its type.
@@ -805,6 +806,14 @@ export class SchemaBuilder<T> {
         } else {
             return new SchemaBuilder<T extends Array<infer ITEMS> ? ITEMS : never>(this.schemaObject.items as JSONSchema)
         }
+    }
+
+    /**
+     * Build a property accessor starting from this schema type
+     * @returns a property accessor for the type represented by the schema
+     */
+    getPropertyAccessor() {
+        return createPropertyAccessor(this as SchemaBuilder<T>)
     }
 
     /**

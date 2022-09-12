@@ -746,4 +746,10 @@ describe("Schema Builder", function () {
         expect(requiredProperties).to.eql(["req"])
         expect(optionalProperties).to.eql(["opt"])
     })
+
+    it("should get property accessor", function () {
+        let schemaBuilder = SchemaBuilder.emptySchema().addProperty("o", SchemaBuilder.emptySchema().addString("s").addBoolean("o"))
+        const pa = schemaBuilder.getPropertyAccessor().o.s
+        expect(pa.path).to.eql(["o", "s"])
+    })
 })
