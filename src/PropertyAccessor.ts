@@ -91,19 +91,6 @@ export type PropertyAccessorBuilder<D, V, PATH extends PropertyAccessorPath> = P
      */
     transform<T>(getValueMapping: (value: V) => T, setValueMapping?: (value: T, target: V) => V): PropertyAccessor<D, T, PATH>
     /**
-     * Narrow down the type of the current value in case it is a union type.
-     * The filter function should be used to pick the chosen branch of the union by returning the value only when it has the right type.
-     * @example ```ts
-     * type M = {o: {s: string} | {n: number}}
-     * pa.o.narrow(v => "s" in v ? v : undefined)
-     * ```
-     * @param typeFilter filter type function that should narrow the type and return the value
-     */
-    narrowbis<X extends V>(
-        typeFilter: (value: V) => X | undefined,
-        schemaTransform?: (s: SchemaBuilder<V>) => SchemaBuilder<X>,
-    ): PropertyAccessorBuilder<D, X, PATH>
-    /**
      * Narrow down the type of the current path in case it is a union type.
      * If provided, the narrowSchema function should get or create a schema corresponding to the expected narrowed type or transform it from the current schema.
      * @example ```ts
