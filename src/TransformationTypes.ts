@@ -180,3 +180,28 @@ export type StringKeys<T> = Extract<keyof T, string>
  * Extract the string keys of T where the value match the type C
  */
 export type KeysOfType<T, C> = { [P in StringKeys<T>]: T[P] extends C ? P : never }[StringKeys<T>]
+
+/**
+ * Force typescript to expand the given type
+ */
+export type Expand<T> = T extends object ? { [P in keyof T]: T[P] } : T
+
+/**
+ * Merge two object types together deeply
+ */
+export type DeepMerge<T1, T2> = Omit<T1, Extract<keyof T1, keyof T2>> &
+    Omit<T2, Extract<keyof T2, keyof T1>> & {
+        [P in keyof T1 & keyof T2]: T1[P] extends object ? { [P2 in keyof DeepMerge<T1[P], T2[P]>]: DeepMerge<T1[P], T2[P]>[P2] } : T1[P]
+    }
+
+/**
+ * Experimental type to evaluate a const PATH of T (as given by property accessor) and replace its target by the type U
+ * @experimental
+ */
+export type PathReplace<PATH extends unknown[], T, U> = PATH extends [infer PATH_ELEMENT, ...infer REST]
+    ? T extends any[]
+        ? PathReplace<REST, T[number], U>[]
+        : PATH_ELEMENT extends keyof T
+        ? Expand<Omit<T, Extract<keyof T, PATH_ELEMENT>> & { [P in PATH_ELEMENT]: PathReplace<REST, T[P], U> }>
+        : never
+    : U
