@@ -117,7 +117,7 @@ export class SchemaBuilder<T> {
      * Create a boolean schema
      */
     static booleanSchema<N extends boolean = false>(
-        schema: Pick<JSONSchema, JSONSchemaProperties> = {},
+        schema: Pick<JSONSchema, JSONSchemaBooleanProperties> = {},
         nullable?: boolean,
     ): N extends true ? SchemaBuilder<boolean | null> : SchemaBuilder<boolean> {
         let s: JSONSchema = {
@@ -443,7 +443,7 @@ export class SchemaBuilder<T> {
      */
     addBoolean<K extends keyof any, REQUIRED extends boolean = true, N extends boolean = false>(
         propertyName: K,
-        schema: Pick<JSONSchema, JSONSchemaProperties> = {},
+        schema: Pick<JSONSchema, JSONSchemaBooleanProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
     ): SchemaBuilder<Expand<Combine<T, boolean, K, REQUIRED, N>>> {
@@ -978,26 +978,18 @@ function validationError(ajvErrorsText: string, errorsDetails: any) {
     return new VError(opt, `Invalid parameters: ${ajvErrorsText}`)
 }
 
-export type JSONSchemaArrayProperties = "description" | "default" | "maxItems" | "minItems" | "uniqueItems" | "examples" | "readOnly" | "writeOnly"
+export type JSONSchemaCommonProperties = "title" | "description" | "default" | "examples" | "readOnly" | "writeOnly"
 
-export type JSONSchemaStringProperties = "description" | "default" | "maxLength" | "minLength" | "pattern" | "format" | "examples" | "readOnly" | "writeOnly"
+export type JSONSchemaArrayProperties = JSONSchemaCommonProperties | "maxItems" | "minItems" | "uniqueItems"
 
-export type JSONSchemaNumberProperties =
-    | "description"
-    | "default"
-    | "multipleOf"
-    | "maximum"
-    | "exclusiveMaximum"
-    | "minimum"
-    | "exclusiveMinimum"
-    | "examples"
-    | "readOnly"
-    | "writeOnly"
+export type JSONSchemaStringProperties = JSONSchemaCommonProperties | "maxLength" | "minLength" | "pattern" | "format"
 
-export type JSONSchemaEnumProperties = "title" | "description" | "default" | "examples" | "readOnly" | "writeOnly"
+export type JSONSchemaNumberProperties = JSONSchemaCommonProperties | "multipleOf" | "maximum" | "exclusiveMaximum" | "minimum" | "exclusiveMinimum"
 
-export type JSONSchemaProperties = "description" | "default" | "examples" | "readOnly" | "writeOnly"
+export type JSONSchemaEnumProperties = JSONSchemaCommonProperties
 
-export type JSONSchemaObjectProperties = "title" | "description" | "maxProperties" | "minProperties" | "default" | "examples" | "readOnly" | "writeOnly"
+export type JSONSchemaBooleanProperties = JSONSchemaCommonProperties
 
-export type JSONSchemaGeneralProperties = "title" | "description" | "default" | "examples"
+export type JSONSchemaObjectProperties = JSONSchemaCommonProperties | "maxProperties" | "minProperties"
+
+export type JSONSchemaGeneralProperties = JSONSchemaCommonProperties
