@@ -141,7 +141,11 @@ export const propertyAccessorReservedProperties = ["get", "set", "path", "schema
  */
 export function createPropertyAccessor<D>(s?: SchemaBuilder<D>) {
     function getSubschema(property: string | number, s?: SchemaBuilder<any>) {
-        return s ? (s.isArraySchema || typeof property === "number" ? s.getItemsSubschema() : s.getSubschema(property)) : undefined
+        return s
+            ? s.isArraySchema && typeof property === "number"
+                ? (s.getItemsSubschema() as SchemaBuilder<any>)
+                : (s.getSubschema(property) as SchemaBuilder<any>)
+            : undefined
     }
     function buildPropertyAccess<V, PATH extends PropertyAccessorPath>(path: PATH, s?: SchemaBuilder<V>): PropertyAccessorBuilder<D, V, PATH> {
         function propertyAccessor<K extends keyof V & (string | number)>(property: K) {
