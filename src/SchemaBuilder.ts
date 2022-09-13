@@ -51,7 +51,7 @@ export class SchemaBuilder<T> {
      * The schema has to be provided as a literal using `as const`
      */
     static fromJsonSchema<S>(schema: S, validationConfig?: Options) {
-        return new SchemaBuilder<JsonSchemaType<S>>(schema, validationConfig)
+        return new SchemaBuilder<JsonSchemaType<S>>(schema as any, validationConfig)
     }
 
     /**
@@ -328,7 +328,7 @@ export class SchemaBuilder<T> {
         let schemaObject = cloneJSON(this.schemaObject)
         schemaObject.properties = schemaObject.properties || {}
         if (propertyName in schemaObject.properties) {
-            throw new VError(`Schema Builder Error: '${propertyName}' already exists in ${schemaObject.title || "this"} schema`)
+            throw new VError(`Schema Builder Error: '${propertyName as string}' already exists in ${schemaObject.title || "this"} schema`)
         }
         schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
         if (isRequired === true || isRequired === undefined) {
