@@ -53,7 +53,7 @@ export interface ReadOnlyPropertyAccessor<D, V, PATH extends PropertyAccessorPat
  * It contains a path to a property in `D` with a `get` function to retrieve its value, a `set` function to modify it and a `schema` corresponding to the targeted property
  */
 export interface PropertyAccessor<D, V, PATH extends PropertyAccessorPath = PropertyAccessorPath> extends ReadOnlyPropertyAccessor<D, V, PATH> {
-    set(data: D, value: V): D
+    set<D2 extends D>(data: D2, value: V): D2
 }
 
 /**
@@ -152,17 +152,17 @@ export function createPropertyAccessor<D>(s?: SchemaBuilder<D>) {
             return buildPropertyAccess<V[K], [...PATH, K]>([...path, property], getSubschema(property, s))
         }
         propertyAccessor.get = (data: D) => getWithPath(path, data) as V
-        propertyAccessor.set = (data: D, value: V) => setWithPath(path, data, value) as D
+        propertyAccessor.set = <D2 extends D>(data: D2, value: V) => setWithPath(path, data, value) as D2
         propertyAccessor.path = path
         propertyAccessor.schema = s
         propertyAccessor.transform = <T>(getValueMapping: (value: V) => T, setValueMapping?: (value: T, target: V) => V) => {
             const pa: PropertyAccessorBuilder<D, T, PATH> = buildPropertyAccess(path)
             pa.get = (data: D) => getValueMapping(getWithPath(path, data) as V)
-            pa.set = (data: D, value: T) => {
+            pa.set = <D2 extends D>(data: D2, value: T) => {
                 if (!setValueMapping) {
                     throw new Error(`'setValueMapping' is not defined for property accessor '${path.join(".")}'`)
                 }
-                return setWithPath(path, data, setValueMapping(value, getWithPath(path, data) as V)) as D
+                return setWithPath(path, data, setValueMapping(value, getWithPath(path, data) as V)) as D2
             }
             return pa
         }
@@ -183,7 +183,7 @@ export function createPropertyAccessor<D>(s?: SchemaBuilder<D>) {
                 const propertyPath = isNaN(propertyAsNumber) ? property : propertyAsNumber
                 return buildPropertyAccess<any, any>([...path, propertyPath], getSubschema(propertyPath, s))
             },
-        }) as any as PropertyAccessorBuilder<D, V, PATH>
+        }) as PropertyAccessorBuilder<D, V, PATH>
         return propertyAccessorBuilder
     }
     return buildPropertyAccess<D, []>([], s)
