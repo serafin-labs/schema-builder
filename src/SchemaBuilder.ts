@@ -607,9 +607,11 @@ export class SchemaBuilder<T> {
      * If the property is already an Array nothing happen.
      *
      * @param propertyNames properties that will have the alternative array type
+     * @param schema Array schema options to add to the transformed properties
      */
     transformPropertiesToArray<K extends keyof T>(
         propertyNames?: readonly K[],
+        schema: Pick<JSONSchema, JSONSchemaArraySpecificProperties> = {},
     ): SchemaBuilder<{ [P in keyof TransformPropertiesToArray<T, K>]: TransformPropertiesToArray<T, K>[P] }> {
         if (!this.isSimpleObjectSchema) {
             throw new VError(
@@ -624,7 +626,7 @@ export class SchemaBuilder<T> {
             // Transform the property if it's not an array
             if ((propertySchema as JSONSchema).type !== "array") {
                 schemaObject.properties[property as string] = {
-                    oneOf: [propertySchema, { type: "array", items: cloneJSON(propertySchema) }],
+                    oneOf: [propertySchema, { type: "array", items: cloneJSON(propertySchema), ...schema }],
                 }
             }
         }
@@ -986,7 +988,9 @@ function validationError(ajvErrorsText: string, errorsDetails: any) {
 
 export type JSONSchemaCommonProperties = "title" | "description" | "default" | "examples" | "readOnly" | "writeOnly"
 
-export type JSONSchemaArrayProperties = JSONSchemaCommonProperties | "maxItems" | "minItems" | "uniqueItems"
+export type JSONSchemaArraySpecificProperties = "maxItems" | "minItems" | "uniqueItems"
+
+export type JSONSchemaArrayProperties = JSONSchemaCommonProperties | JSONSchemaArraySpecificProperties
 
 export type JSONSchemaStringProperties = JSONSchemaCommonProperties | "maxLength" | "minLength" | "pattern" | "format"
 

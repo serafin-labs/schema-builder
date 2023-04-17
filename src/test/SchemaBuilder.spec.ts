@@ -332,11 +332,16 @@ describe("Schema Builder", function () {
     })
 
     it("should transform properties to array", function () {
-        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").transformPropertiesToArray(["s"])
+        let schemaBuilder = SchemaBuilder.emptySchema().addString("s").transformPropertiesToArray(["s"], { minItems: 2 })
         expect(schemaBuilder).to.exist
         expect(() =>
             schemaBuilder.validate({
                 s: ["test"],
+            }),
+        ).to.throw()
+        expect(() =>
+            schemaBuilder.validate({
+                s: ["test1", "test2"],
             }),
         ).to.not.throw()
         expect(() =>
