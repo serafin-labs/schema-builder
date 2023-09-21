@@ -1,0 +1,12 @@
+{
+    "include": ["src"],
+    "exclude": ["node_modules", "**/*.spec.ts"],
+    "compilerOptions": {
+        "sourceMap": true,
+        "declaration": true,
+        "module": "esnext",
+        "moduleResolution": "node",
+        "target": "es5",
+        "strict": true
+    }
+}

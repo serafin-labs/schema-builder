@@ -3,6 +3,6 @@
     "compilerOptions": {
         "module": "esnext",
         "target": "esnext",
-        "outDir": "lib/esm"
+        "outDir": "lib/cjs"
     }
 }
