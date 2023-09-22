@@ -1,4 +1,4 @@
-import { SchemaBuilder } from "./SchemaBuilder"
+import { SchemaBuilder } from "./SchemaBuilder.js"
 
 /**
  * Shortcut for Record<string, unknown> that is commonly used with schemas

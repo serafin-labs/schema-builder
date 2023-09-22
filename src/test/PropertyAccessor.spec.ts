@@ -1,8 +1,8 @@
 import { expect } from "chai"
-import { SchemaBuilder } from "../SchemaBuilder"
-import { createPropertyAccessor } from "../PropertyAccessor"
+import { SchemaBuilder } from "../SchemaBuilder.js"
+import { createPropertyAccessor } from "../PropertyAccessor.js"
 import { pipeline } from "stream"
-import { JSONSchema } from "../JsonSchema"
+import { JSONSchema } from "../JsonSchema.js"
 
 describe("Property Accessor", function () {
     it("should get and set a top level property", function () {

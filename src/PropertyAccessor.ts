@@ -1,4 +1,4 @@
-import { SchemaBuilder } from "./SchemaBuilder"
+import { SchemaBuilder } from "./SchemaBuilder.js"
 
 export type PropertyAccessorPath = (string | number)[]
 

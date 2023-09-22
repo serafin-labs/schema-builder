@@ -5,7 +5,8 @@
         "incremental": true,
         "sourceMap": true,
         "declaration": true,
-        "moduleResolution": "node",
-        "strict": true
+        "strict": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true
     }
 }

@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import { SchemaBuilder } from ".."
-import { JSONSchema } from "../JsonSchema"
+import { JSONSchema } from "../JsonSchema.js"
 
 describe("Schema Builder", function () {
     it("should be initialized with a JSON schema", function () {

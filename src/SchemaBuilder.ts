@@ -1,9 +1,9 @@
 import Ajv, { Options } from "ajv"
-import * as VError from "verror"
+import VError from "verror"
 import * as _ from "lodash"
 import addFormats from "ajv-formats"
 
-import { JsonSchemaType } from "./JsonSchemaType"
+import { JsonSchemaType } from "./JsonSchemaType.js"
 import {
     Combine,
     DeepPartial,
@@ -19,9 +19,9 @@ import {
     OneOf,
     AllOf,
 } from "./TransformationTypes"
-import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema"
-import { throughJsonSchema, cloneJSON, setRequired } from "./utils"
-import { createPropertyAccessor } from "./PropertyAccessor"
+import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
+import { throughJsonSchema, cloneJSON, setRequired } from "./utils.js"
+import { createPropertyAccessor } from "./PropertyAccessor.js"
 
 /**
  * Represents a JSON Schema and its type.

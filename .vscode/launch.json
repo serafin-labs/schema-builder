@@ -2,26 +2,16 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "args": [
-                "--require",
-                "ts-node/register",
-                "--require",
-                "source-map-support/register",
-                "--recursive",
-                "--timeout",
-                "999999",
-                "--colors",
-                "${workspaceFolder}/src/test/**/*.spec.ts"
-            ],
+            "args": ["--recursive", "--timeout", "999999", "--colors", "${workspaceFolder}/src/test/**/*.spec.ts"],
             "env": {
-                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\"}"
+                "NODE_OPTIONS": "--loader tsx --no-warnings"
             },
             "internalConsoleOptions": "openOnSessionStart",
             "name": "Mocha Tests",
-            "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+            "program": "${workspaceFolder}/node_modules/mocha/bin/mocha.js",
             "request": "launch",
             "skipFiles": ["<node_internals>/**"],
-            "type": "pwa-node"
+            "type": "node"
         }
     ]
 }

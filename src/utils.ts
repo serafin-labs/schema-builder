@@ -1,4 +1,4 @@
-import { JSONSchema } from "./JsonSchema"
+import { JSONSchema } from "./JsonSchema.js"
 
 /**
  * Like a forEach but deeply on each JsonSchema it founds
