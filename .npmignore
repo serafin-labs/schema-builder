@@ -17,3 +17,4 @@ tslint.json
 docker-compose.*
 gulpfile.js
 /lib/test
+/lib/coverage
