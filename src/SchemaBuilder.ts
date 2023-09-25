@@ -1,6 +1,6 @@
 import Ajv, { Options } from "ajv"
 import VError from "verror"
-import * as _ from "lodash"
+import _ from "lodash"
 import addFormats from "ajv-formats"
 
 import { JsonSchemaType } from "./JsonSchemaType.js"
