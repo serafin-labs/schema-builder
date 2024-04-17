@@ -1,7 +1,7 @@
-import AjvModule, { Options } from "ajv"
+import Ajv, { Options } from "ajv"
 import VError from "verror"
 import _ from "lodash"
-import AjvFormatsModule from "ajv-formats"
+import addFormats from "ajv-formats"
 import { JsonSchemaType } from "./JsonSchemaType.js"
 import {
     Combine,
@@ -21,9 +21,6 @@ import {
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
 import { throughJsonSchema, cloneJSON, setRequired } from "./utils.js"
 import { createPropertyAccessor } from "./PropertyAccessor.js"
-
-const Ajv = AjvModule.default
-const addFormats = AjvFormatsModule.default
 
 /**
  * Represents a JSON Schema and its type.

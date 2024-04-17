@@ -2,9 +2,9 @@
     "name": "@serafin/schema-builder",
     "version": "0.18.5",
     "description": "A Typescript JSON Schema library that creates a schema and its type at the same time",
-    "type": "module",
-    "module": "./lib/esm/index.js",
-    "exports": "./lib/esm/index.js",
+    "main": "./lib/cjs/index.js",
+    "exports": "./lib/cjs/index.js",
+    "types": "./lib/cjs/index.d.ts",
     "contributors": [
         {
             "name": "Sébastien de Saint Florent"
@@ -48,11 +48,11 @@
     "scripts": {
         "test": "NODE_OPTIONS='--import tsx --no-warnings' nyc mocha --recursive ./src/test/**/*.spec.ts",
         "predev": "npm install",
-        "dev": "concurrently -c auto -n '' npm:dev:esm npm:dev:test",
+        "dev": "concurrently -c auto -n '' npm:dev:cjs npm:dev:test",
         "dev:cjs": "tsc --watch --preserveWatchOutput --project tsconfig.cjs.json",
         "dev:esm": "tsc --watch --preserveWatchOutput",
         "dev:test": "NODE_OPTIONS='--import tsx --no-warnings' nyc mocha --reporter dot --watch --watch-files src --extension ts ./src/test/**/*.spec.ts",
-        "build": "npm run build:esm",
+        "build": "npm run build:cjs",
         "build:cjs": "tsc --project tsconfig.cjs.json",
         "build:esm": "tsc",
         "fix": "echo '{ \"type\": \"module\" }' > lib/esm/package.json && echo '{ \"type\": \"commonjs\" }' > lib/cjs/package.json",
