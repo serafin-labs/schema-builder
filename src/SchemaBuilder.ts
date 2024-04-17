@@ -1,8 +1,7 @@
-import Ajv, { Options } from "ajv"
+import AjvModule, { Options } from "ajv"
 import VError from "verror"
 import _ from "lodash"
-import addFormats from "ajv-formats"
-
+import AjvFormatsModule from "ajv-formats"
 import { JsonSchemaType } from "./JsonSchemaType.js"
 import {
     Combine,
@@ -18,10 +17,13 @@ import {
     Nullable,
     OneOf,
     AllOf,
-} from "./TransformationTypes"
+} from "./TransformationTypes.js"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
 import { throughJsonSchema, cloneJSON, setRequired } from "./utils.js"
 import { createPropertyAccessor } from "./PropertyAccessor.js"
+
+const Ajv = AjvModule.default
+const addFormats = AjvFormatsModule.default
 
 /**
  * Represents a JSON Schema and its type.
@@ -520,7 +522,7 @@ export class SchemaBuilder<T> {
      * @param properties
      * @param additionalProperties [] means no additional properties are kept in the result. undefined means additionalProperties is kept or set to true if it was not set to false. ['aProperty'] allows you to capture only specific names that conform to additionalProperties type.
      */
-    pickAdditionalProperties<K extends keyof T, K2 extends keyof T = any>(
+    pickAdditionalProperties<K extends keyof T, K2 extends keyof T & string = any>(
         properties: readonly K[],
         additionalProperties?: readonly K2[],
     ): SchemaBuilder<Pick<T, K> & { [P in K2]: T[P] }> {

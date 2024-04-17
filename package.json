@@ -2,14 +2,9 @@
     "name": "@serafin/schema-builder",
     "version": "0.18.5",
     "description": "A Typescript JSON Schema library that creates a schema and its type at the same time",
-    "main": "./lib/cjs/index.js",
+    "type": "module",
     "module": "./lib/esm/index.js",
-    "exports": {
-        ".": {
-            "import": "./lib/esm/index.js",
-            "require": "./lib/cjs/index.js"
-        }
-    },
+    "exports": "./lib/esm/index.js",
     "contributors": [
         {
             "name": "Sébastien de Saint Florent"
@@ -29,36 +24,36 @@
         "url": "https://github.com/serafin-labs/schema-builder"
     },
     "dependencies": {
-        "ajv": "^8.8.2",
-        "ajv-formats": "^2.1.1",
+        "ajv": "^8.12.0",
+        "ajv-formats": "^3.0.1",
         "lodash": "^4.17.21",
         "verror": "^1.10.1"
     },
     "devDependencies": {
         "@istanbuljs/nyc-config-typescript": "^1.0.2",
-        "@types/chai": "^4.3.6",
-        "@types/lodash": "^4.14.185",
-        "@types/mocha": "^10.0.1",
-        "@types/node": "^17.0.45",
-        "@types/verror": "^1.10.6",
-        "chai": "^4.3.8",
-        "concurrently": "^8.2.1",
-        "mocha": "^10.2.0",
+        "@types/chai": "^4.3.14",
+        "@types/lodash": "^4.17.0",
+        "@types/mocha": "^10.0.6",
+        "@types/node": "^20.12.4",
+        "@types/verror": "^1.10.10",
+        "chai": "^5.1.0",
+        "concurrently": "^8.2.2",
+        "mocha": "^10.4.0",
         "nyc": "^15.1.0",
         "ts-lint": "^4.5.1",
         "tslint-config-airbnb": "^5.11.2",
-        "tsx": "^3.12.10",
-        "typescript": "^4.8.3"
+        "tsx": "^4.7.2",
+        "typescript": "^5.4.4"
     },
     "scripts": {
-        "test": "NODE_OPTIONS='--loader tsx --no-warnings' nyc mocha --recursive ./src/test/**/*.spec.ts",
+        "test": "NODE_OPTIONS='--import tsx --no-warnings' nyc mocha --recursive ./src/test/**/*.spec.ts",
         "predev": "npm install",
-        "dev": "concurrently -c auto -n '' npm:dev:* npm:fix",
+        "dev": "concurrently -c auto -n '' npm:dev:esm npm:dev:test",
         "dev:cjs": "tsc --watch --preserveWatchOutput --project tsconfig.cjs.json",
         "dev:esm": "tsc --watch --preserveWatchOutput",
-        "dev:test": "NODE_OPTIONS='--loader tsx --no-warnings' nyc mocha --reporter dot --watch --watch-files src --extension ts ./src/test/**/*.spec.ts",
-        "build": "npm run build:esm && npm run build:cjs && npm run fix",
-        "build:cjs": "tsc --project tsconfig.cjs.json ",
+        "dev:test": "NODE_OPTIONS='--import tsx --no-warnings' nyc mocha --reporter dot --watch --watch-files src --extension ts ./src/test/**/*.spec.ts",
+        "build": "npm run build:esm",
+        "build:cjs": "tsc --project tsconfig.cjs.json",
         "build:esm": "tsc",
         "fix": "echo '{ \"type\": \"module\" }' > lib/esm/package.json && echo '{ \"type\": \"commonjs\" }' > lib/cjs/package.json",
         "prepublishOnly": "npm install && rm -rf ./lib && npm run build && npm test"
