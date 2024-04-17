@@ -70,7 +70,7 @@ export type TransformProperties<T, K extends keyof T, U> = Omit<T, K> & { [P in 
 /**
  * T with properties K Transformed to T[P] | T[P][] only if T[P] is not already an Array
  */
-export type TransformPropertiesToArray<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] extends any[] ? T[P] : T[P] | T[P][] }
+export type TransformPropertiesToArray<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] extends any[] ? T[P] : T[P] | NonNullable<T[P]>[] }
 
 /**
  * T with properties K Transformed to A | T[P] only if T[P] is A[]
