@@ -711,14 +711,10 @@ describe("Schema Builder", function () {
     })
 
     it("should get a subschema", function () {
-        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v"))
-        let schemaBuilder2 = schemaBuilder1.getSubschema("s")
+        let schemaBuilder1 = SchemaBuilder.emptySchema().addProperty("s", SchemaBuilder.emptySchema().addString("v"), false)
+        let schemaBuilder2 = schemaBuilder1.getSubschema("s").getSubschema("v")
         expect(schemaBuilder2).to.exist
-        expect(() =>
-            schemaBuilder2.validate({
-                v: "test",
-            }),
-        ).to.not.throw()
+        expect(() => schemaBuilder2.validate("test")).to.not.throw()
         expect(() =>
             schemaBuilder2.validate({
                 s: { v: "test" },

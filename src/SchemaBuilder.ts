@@ -794,7 +794,7 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'getSubschema' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         } else {
-            return new SchemaBuilder<T[K]>(this.schemaObject.properties[propertyName as string] as JSONSchema)
+            return new SchemaBuilder<NonNullable<T[K]>>(this.schemaObject.properties[propertyName as string] as JSONSchema)
         }
     }
 
