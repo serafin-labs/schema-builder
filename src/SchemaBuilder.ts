@@ -17,6 +17,7 @@ import {
     Nullable,
     OneOf,
     AllOf,
+    ObjectSchemaDefinition,
 } from "./TransformationTypes.js"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
 import { throughJsonSchema, cloneJSON, setRequired } from "./utils.js"
@@ -64,6 +65,41 @@ export class SchemaBuilder<T> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: nullable ? ["object", "null"] : "object",
+            additionalProperties: false,
+        }
+        return new SchemaBuilder(s) as any
+    }
+
+    /**
+     * Create the schema of an object with its properties. Takes a map of properties to their schema with optional properties surrounded by brackets.
+     * @example: {
+     *   s: SB.stringSchema(),
+     *   b: [SB.booleanSchema()]
+     * }
+     * => outputs type {
+     *   s: string,
+     *   b?: boolean
+     * }
+     */
+    static objectSchema<P extends { [k: string]: SchemaBuilder<any> | [SchemaBuilder<any>] }, N extends boolean = false>(
+        propertiesDefinition: P,
+        schema: Pick<JSONSchema, JSONSchemaObjectProperties> = {},
+        nullable?: N,
+    ): N extends true ? SchemaBuilder<ObjectSchemaDefinition<P> | null> : SchemaBuilder<ObjectSchemaDefinition<P>> {
+        const required = [] as string[]
+        const properties = {} as NonNullable<JSONSchema["properties"]>
+        for (const property in propertiesDefinition) {
+            const propertySchema = propertiesDefinition[property]
+            properties[property] = Array.isArray(propertySchema) ? propertySchema[0].schema : propertySchema.schema
+            if (!Array.isArray(propertySchema)) {
+                required.push(property)
+            }
+        }
+        let s: JSONSchema = {
+            ...cloneJSON(schema),
+            type: nullable ? ["object", "null"] : "object",
+            properties,
+            ...(required.length > 0 ? { required } : {}),
             additionalProperties: false,
         }
         return new SchemaBuilder(s) as any
@@ -1002,3 +1038,5 @@ export type JSONSchemaBooleanProperties = JSONSchemaCommonProperties
 export type JSONSchemaObjectProperties = JSONSchemaCommonProperties | "maxProperties" | "minProperties"
 
 export type JSONSchemaGeneralProperties = JSONSchemaCommonProperties
+
+export const SB = SchemaBuilder // shorter alias

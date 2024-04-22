@@ -205,3 +205,25 @@ export type PathReplace<PATH extends unknown[], T, U> = PATH extends [infer PATH
         ? Expand<Omit<T, Extract<keyof T, PATH_ELEMENT>> & { [P in PATH_ELEMENT]: PathReplace<REST, T[P], U> }>
         : never
     : U
+
+/**
+ * Transform a map of SchemaBuilders into it's corresponding model type
+ * You can wrap a schema with brackets to declare the property is optional
+ * @example: {
+ *   s: SB.stringSchema(),
+ *   b: [SB.booleanSchema()]
+ * }
+ * => outputs type {
+ *   s: string,
+ *   b?: boolean
+ * }
+ */
+export type ObjectSchemaDefinition<T extends { [k: string]: SchemaBuilder<any> | [SchemaBuilder<any>] }> =
+    // force the sort order of properties to be the same as the one defined in the source object
+    Partial<Record<keyof T, unknown>> &
+        // compute required and optional properties
+        ({ [K in keyof T as T[K] extends SchemaBuilder<any> ? K : never]: T[K] extends SchemaBuilder<infer U> ? U : never } & {
+            [K in keyof T as T[K] extends [SchemaBuilder<any>] ? K : never]?: T[K] extends [SchemaBuilder<infer U>] ? U : never
+        }) extends infer O
+        ? { [K in keyof O]: O[K] } // force re-indexing the properties to avoid the '&'
+        : never
