@@ -65,6 +65,27 @@ describe("Schema Builder", function () {
         expect(() => schemaBuilder.validate({} as any)).to.throw()
     })
 
+    it("should add multiple properties at the same time and validate data", function () {
+        let schemaBuilder = SB.emptySchema().addProperties({
+            s1: SB.stringSchema(),
+            s2: [SB.stringSchema()],
+        })
+
+        expect(schemaBuilder).to.exist
+        expect(() =>
+            schemaBuilder.validate({
+                s1: "test",
+            }),
+        ).to.not.throw()
+        expect(() =>
+            schemaBuilder.validate({
+                s1: "test",
+                s2: "test",
+            }),
+        ).to.not.throw()
+        expect(() => schemaBuilder.validate({} as any)).to.throw()
+    })
+
     it("should change validation config and copy it throught transformations", function () {
         let schemaBuilder1 = SB.emptySchema().addString("s").addNumber("n")
         let schemaBuilder2 = schemaBuilder1.configureValidation({ coerceTypes: true })

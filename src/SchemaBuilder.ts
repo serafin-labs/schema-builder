@@ -90,7 +90,7 @@ export class SchemaBuilder<T> {
         const properties = {} as NonNullable<JSONSchema["properties"]>
         for (const property in propertiesDefinition) {
             const propertySchema = propertiesDefinition[property]
-            properties[property] = Array.isArray(propertySchema) ? propertySchema[0].schema : propertySchema.schema
+            properties[property] = cloneJSON(Array.isArray(propertySchema) ? propertySchema[0].schema : propertySchema.schema)
             if (!Array.isArray(propertySchema)) {
                 required.push(property)
             }
@@ -420,6 +420,34 @@ export class SchemaBuilder<T> {
         }
         let schemaObject = cloneJSON(this.schemaObject)
         schemaObject.additionalProperties = schemaBuilder ? cloneJSON(schemaBuilder.schemaObject) : true
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Add multiple properties to the schema using the same kind of definition as `objectSchema` static method
+     */
+    addProperties<P extends { [k: string]: SchemaBuilder<any> | [SchemaBuilder<any>] }>(
+        propertiesDefinition: P,
+    ): SchemaBuilder<{ [K in keyof (T & ObjectSchemaDefinition<P>)]: (T & ObjectSchemaDefinition<P>)[K] }> {
+        if (!this.isObjectSchema) {
+            throw new VError(`Schema Builder Error: you can only add properties to an object schema`)
+        }
+        let schemaObject = cloneJSON(this.schemaObject)
+        schemaObject.properties = schemaObject.properties || {}
+        const propertiesIntersection = _.intersection(Object.keys(schemaObject.properties), Object.keys(propertiesDefinition))
+        if (propertiesIntersection.length) {
+            throw new VError(`Schema Builder Error: '${propertiesIntersection.join(", ")}' already exists in ${schemaObject.title || "this"} schema`)
+        }
+        for (const propertyName in propertiesDefinition) {
+            const propertySchema = propertiesDefinition[propertyName]
+            schemaObject.properties[propertyName as string] = cloneJSON(
+                Array.isArray(propertySchema) ? propertySchema[0].schemaObject : propertySchema.schemaObject,
+            )
+            if (!Array.isArray(propertySchema)) {
+                schemaObject.required = schemaObject.required || []
+                schemaObject.required.push(propertyName as string)
+            }
+        }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
