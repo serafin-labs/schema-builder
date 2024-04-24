@@ -68,19 +68,22 @@ describe("Schema Builder", function () {
     it("should add multiple properties at the same time and validate data", function () {
         let schemaBuilder = SB.emptySchema().addProperties({
             s1: SB.stringSchema(),
-            s2: [SB.stringSchema()],
+            s2: [SB.stringSchema(), undefined],
+            sb: [SB.stringSchema(), SB.booleanSchema()],
         })
 
         expect(schemaBuilder).to.exist
         expect(() =>
             schemaBuilder.validate({
                 s1: "test",
+                sb: true,
             }),
         ).to.not.throw()
         expect(() =>
             schemaBuilder.validate({
                 s1: "test",
                 s2: "test",
+                sb: "true",
             }),
         ).to.not.throw()
         expect(() => schemaBuilder.validate({} as any)).to.throw()
@@ -466,23 +469,33 @@ describe("Schema Builder", function () {
     })
 
     it("should initialize a complex schema and validate data", function () {
-        let taskSchema = SB.objectSchema({
-            name: SB.stringSchema(),
-            progress: SB.numberSchema(),
-            isCompleted: [SB.booleanSchema()],
-        })
+        let taskSchema = SB.objectSchema(
+            {
+                title: "Task",
+            },
+            {
+                name: SB.stringSchema(),
+                progress: SB.numberSchema(),
+                isCompleted: [SB.booleanSchema(), undefined],
+            },
+        )
 
-        let userSchema = SB.objectSchema({
-            id: SB.stringSchema({ pattern: "\\w" }),
-            firstName: SB.stringSchema(),
-            lastName: SB.stringSchema(),
-            role: SB.enumSchema(["admin", "user"]),
-            email: SB.stringSchema({ format: "email" }),
-            tags: SB.arraySchema(SB.stringSchema(), { minItems: 1 }),
-            age: [SB.integerSchema()],
-            friendsIds: [SB.arraySchema(SB.stringSchema())],
-            tasks: SB.arraySchema(taskSchema),
-        })
+        let userSchema = SB.objectSchema(
+            {
+                title: "User",
+            },
+            {
+                id: SB.stringSchema({ pattern: "\\w" }),
+                firstName: SB.stringSchema(),
+                lastName: SB.stringSchema(),
+                role: SB.enumSchema(["admin", "user"]),
+                email: SB.stringSchema({ format: "email" }),
+                tags: SB.arraySchema(SB.stringSchema(), { minItems: 1 }),
+                age: [SB.integerSchema(), undefined],
+                friendsIds: [SB.arraySchema(SB.stringSchema()), undefined],
+                tasks: SB.arraySchema(taskSchema),
+            },
+        )
 
         expect(userSchema).to.exist
         expect(
@@ -497,7 +510,6 @@ describe("Schema Builder", function () {
                     {
                         name: "something to do",
                         progress: 0,
-                        isCompleted: false,
                     },
                 ],
             }),

@@ -218,12 +218,16 @@ export type PathReplace<PATH extends unknown[], T, U> = PATH extends [infer PATH
  *   b?: boolean
  * }
  */
-export type ObjectSchemaDefinition<T extends { [k: string]: SchemaBuilder<any> | [SchemaBuilder<any>] }> =
+export type ObjectSchemaDefinition<T extends { [k: string]: SchemaBuilder<any> | (SchemaBuilder<any> | undefined)[] }> =
     // force the sort order of properties to be the same as the one defined in the source object
     Partial<Record<keyof T, unknown>> &
         // compute required and optional properties
         ({ [K in keyof T as T[K] extends SchemaBuilder<any> ? K : never]: T[K] extends SchemaBuilder<infer U> ? U : never } & {
-            [K in keyof T as T[K] extends [SchemaBuilder<any>] ? K : never]?: T[K] extends [SchemaBuilder<infer U>] ? U : never
+            [K in keyof T as T[K] extends Array<infer I> ? (undefined extends I ? K : never) : never]?: T[K] extends Array<SchemaBuilder<infer U> | undefined>
+                ? U
+                : never
+        } & {
+            [K in keyof T as T[K] extends Array<infer I> ? (undefined extends I ? never : K) : never]: T[K] extends Array<SchemaBuilder<infer U>> ? U : never
         }) extends infer O
         ? { [K in keyof O]: O[K] } // force re-indexing the properties to avoid the '&'
         : never

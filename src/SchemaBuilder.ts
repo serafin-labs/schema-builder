@@ -74,26 +74,33 @@ export class SchemaBuilder<T> {
      * Create the schema of an object with its properties. Takes a map of properties to their schema with optional properties surrounded by brackets.
      * @example: {
      *   s: SB.stringSchema(),
-     *   b: [SB.booleanSchema()]
+     *   b: [SB.booleanSchema(), undefined]
      * }
      * => outputs type {
      *   s: string,
      *   b?: boolean
      * }
      */
-    static objectSchema<P extends { [k: string]: SchemaBuilder<any> | [SchemaBuilder<any>] }, N extends boolean = false>(
+    static objectSchema<P extends { [k: string]: SchemaBuilder<any> | (SchemaBuilder<any> | undefined)[] }, N extends boolean = false>(
+        schema: Pick<JSONSchema, JSONSchemaObjectProperties>,
         propertiesDefinition: P,
-        schema: Pick<JSONSchema, JSONSchemaObjectProperties> = {},
         nullable?: N,
     ): N extends true ? SchemaBuilder<ObjectSchemaDefinition<P> | null> : SchemaBuilder<ObjectSchemaDefinition<P>> {
         const required = [] as string[]
         const properties = {} as NonNullable<JSONSchema["properties"]>
         for (const property in propertiesDefinition) {
             const propertySchema = propertiesDefinition[property]
-            properties[property] = cloneJSON(Array.isArray(propertySchema) ? propertySchema[0].schema : propertySchema.schema)
-            if (!Array.isArray(propertySchema)) {
+            if (!Array.isArray(propertySchema) || propertySchema.findIndex((e) => e === undefined) === -1) {
                 required.push(property)
             }
+            const filteredPropertySchema = Array.isArray(propertySchema) ? propertySchema.filter(<T>(v: T): v is NonNullable<T> => !!v) : propertySchema
+            properties[property] = Array.isArray(filteredPropertySchema)
+                ? filteredPropertySchema.length === 1 && filteredPropertySchema[0]
+                    ? cloneJSON(filteredPropertySchema[0].schema)
+                    : {
+                          anyOf: filteredPropertySchema.map((builder) => cloneJSON((builder as SchemaBuilder<any>).schemaObject)),
+                      }
+                : cloneJSON(filteredPropertySchema.schema)
         }
         let s: JSONSchema = {
             ...cloneJSON(schema),
@@ -162,9 +169,41 @@ export class SchemaBuilder<T> {
     }
 
     /**
+     * Create a null schema
+     */
+    static nullSchema(schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {}): SchemaBuilder<null> {
+        let s: JSONSchema = {
+            ...cloneJSON(schema),
+            type: "null",
+        }
+        return new SchemaBuilder(s) as any
+    }
+
+    /**
+     * Create a schema that can represent any value
+     */
+    static anySchema(schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {}): SchemaBuilder<any> {
+        let s: JSONSchema = {
+            ...cloneJSON(schema),
+        }
+        return new SchemaBuilder(s) as any
+    }
+
+    /**
+     * Create a schema that can represent no value
+     */
+    static noneSchema(schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {}): SchemaBuilder<any> {
+        let s: JSONSchema = {
+            ...cloneJSON(schema),
+            type: [],
+        }
+        return new SchemaBuilder(s) as any
+    }
+
+    /**
      * Create an enum schema
      */
-    static enumSchema<K extends string | number | boolean, N extends boolean = false>(
+    static enumSchema<K extends string | number | boolean | null, N extends boolean = false>(
         values: readonly K[],
         schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
         nullable?: boolean,
@@ -187,7 +226,7 @@ export class SchemaBuilder<T> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: types.length === 1 ? types[0] : types,
-            enum: nullable ? [...values, null] : [...values],
+            enum: nullable && values.findIndex((v) => v === null) === -1 ? [...values, null] : [...values],
         }
         return new SchemaBuilder(s) as any
     }
@@ -426,7 +465,7 @@ export class SchemaBuilder<T> {
     /**
      * Add multiple properties to the schema using the same kind of definition as `objectSchema` static method
      */
-    addProperties<P extends { [k: string]: SchemaBuilder<any> | [SchemaBuilder<any>] }>(
+    addProperties<P extends { [k: string]: SchemaBuilder<any> | (SchemaBuilder<any> | undefined)[] }>(
         propertiesDefinition: P,
     ): SchemaBuilder<{ [K in keyof (T & ObjectSchemaDefinition<P>)]: (T & ObjectSchemaDefinition<P>)[K] }> {
         if (!this.isObjectSchema) {
@@ -440,10 +479,15 @@ export class SchemaBuilder<T> {
         }
         for (const propertyName in propertiesDefinition) {
             const propertySchema = propertiesDefinition[propertyName]
-            schemaObject.properties[propertyName as string] = cloneJSON(
-                Array.isArray(propertySchema) ? propertySchema[0].schemaObject : propertySchema.schemaObject,
-            )
-            if (!Array.isArray(propertySchema)) {
+            const filteredPropertySchema = Array.isArray(propertySchema) ? propertySchema.filter(<T>(v: T): v is NonNullable<T> => !!v) : propertySchema
+            schemaObject.properties[propertyName as string] = Array.isArray(filteredPropertySchema)
+                ? filteredPropertySchema.length === 1 && filteredPropertySchema[0]
+                    ? cloneJSON(filteredPropertySchema[0].schema)
+                    : {
+                          anyOf: filteredPropertySchema.map((builder) => cloneJSON((builder as SchemaBuilder<any>).schemaObject)),
+                      }
+                : cloneJSON(filteredPropertySchema.schema)
+            if (!Array.isArray(propertySchema) || propertySchema.findIndex((e) => e === undefined) === -1) {
                 schemaObject.required = schemaObject.required || []
                 schemaObject.required.push(propertyName as string)
             }
@@ -464,9 +508,9 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Add a string enum to the schema properties
+     * Add an enum to the schema properties
      */
-    addEnum<K extends keyof any, K2 extends string | boolean | number, REQUIRED extends boolean = true, N extends boolean = false>(
+    addEnum<K extends keyof any, K2 extends string | boolean | number | null, REQUIRED extends boolean = true, N extends boolean = false>(
         propertyName: K,
         values: readonly K2[],
         schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
@@ -1028,6 +1072,111 @@ export class SchemaBuilder<T> {
                 minItems: 1,
             })
         }
+    }
+
+    /**
+     * @experimental
+     * Generate the typescript code equivalent of the current schema.
+     * Useful when you want to generate SchemaBuilders from an OpenAPI spec.
+     * @returns The generated variable name for the schema based on its "title" and the typescript code that should produce an equivalent schema
+     */
+    toTypescript() {
+        return [this.schemaObject.title ? `${_.lowerFirst(this.schemaObject.title)}Schema` : "schema", this._toTypescript(true)] as const
+    }
+
+    /**
+     * Internal version of `toTypescript` used for recursion.
+     * Recursive calls will have `processNamedSchema` set to `false` and will stop the recursion on any schema where the title is set.
+     */
+    private _toTypescript(processNamedSchema: boolean): string {
+        if (!processNamedSchema && this.schemaObject.title) {
+            // Named schema should be handled separately. Generate its variable name instead of its schema code.
+            return `${_.lowerFirst(this.schemaObject.title)}Schema`
+        }
+        function getSchemaBuilder(schemaObject: boolean | JSONSchema | undefined): SchemaBuilder<any> {
+            if (schemaObject === true || schemaObject === undefined) {
+                return SchemaBuilder.anySchema()
+            }
+            if (schemaObject === false) {
+                return SchemaBuilder.noneSchema()
+            }
+            return new SchemaBuilder(schemaObject)
+        }
+        function optionalStringify(obj: any, force = false, prefix = "") {
+            let result = force || (obj !== undefined && Object.keys(obj).length) ? JSON.stringify(obj) : undefined
+            result = result ? `${prefix}${result}` : ""
+            return result.replaceAll("\\\\", "\\") // unescape
+        }
+        function o(s: string) {
+            return s
+        }
+        let { type, ...restOfSchemaObject } = this.schemaObject
+        if (type) {
+            let isNull = false
+            if (restOfSchemaObject.enum) {
+                const { enum: enumSchemaObject, ...restOfSchemaObjectForEnum } = restOfSchemaObject
+                return o(`SB.enumSchema(${JSON.stringify(enumSchemaObject)}, ${optionalStringify(restOfSchemaObjectForEnum)})`)
+            }
+            if (Array.isArray(type)) {
+                if (type.length === 0) {
+                    return o(`SB.neverSchema(${optionalStringify(restOfSchemaObject)})`)
+                }
+                if (type.length === 1) {
+                    type = type[0]
+                }
+                if (Array.isArray(type) && type.length === 2 && type[0] !== "null" && type[1] === "null") {
+                    type = type[0]
+                    isNull = true
+                }
+            }
+            if (!Array.isArray(type)) {
+                switch (type) {
+                    case "string":
+                    case "boolean":
+                    case "integer":
+                    case "number":
+                        return o(`SB.${type}Schema(${optionalStringify(restOfSchemaObject, isNull)}${isNull ? ", true" : ""})`)
+                    case "null":
+                        return o(`SB.nullSchema(${optionalStringify(restOfSchemaObject)})`)
+                    case "array":
+                        const { items, ...restOfSchemaObjectForArray } = restOfSchemaObject
+                        if (Array.isArray(items)) {
+                            throw new Error(`Unimplemented tuple`) // @todo fix implementation when tuple are part of SchemaBuilder methods
+                        }
+                        return o(
+                            `SB.arraySchema(${getSchemaBuilder(items)._toTypescript(false)}${optionalStringify(restOfSchemaObjectForArray, isNull, ", ")}${
+                                isNull ? ", true" : ""
+                            })`,
+                        )
+                    case "object":
+                        const { properties, required, additionalProperties, ...restOfSchemaObjectForObject } = restOfSchemaObject
+                        return o(
+                            `SB.objectSchema(${JSON.stringify(restOfSchemaObjectForObject)}, {${Object.entries(properties ?? {})
+                                .map((v) => {
+                                    const propertySchemaCode = getSchemaBuilder(v[1])._toTypescript(false)
+                                    return `"${v[0]}": ${required?.includes(v[0]) ? propertySchemaCode : `[${propertySchemaCode}, undefined]`}`
+                                })
+                                .join(", ")}}${isNull ? ", true" : ""})${
+                                additionalProperties
+                                    ? `.addAdditionalProperties(${
+                                          additionalProperties === true ? "" : getSchemaBuilder(additionalProperties)._toTypescript(false)
+                                      })`
+                                    : ""
+                            }`,
+                        )
+                }
+            }
+        } else if (restOfSchemaObject.allOf) {
+            return o(`SB.allOf(${restOfSchemaObject.allOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false)).join(", ")})`)
+        } else if (restOfSchemaObject.oneOf) {
+            return o(`SB.oneOf(${restOfSchemaObject.oneOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false)).join(", ")})`)
+        } else if (restOfSchemaObject.anyOf) {
+            return o(`SB.anyOf(${restOfSchemaObject.anyOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false)).join(", ")})`)
+        } else if (restOfSchemaObject.not) {
+            return o(`SB.not(${getSchemaBuilder(restOfSchemaObject.not)._toTypescript(false)})`)
+        }
+        // default to a literal schema for unhandled cases
+        return o(`SB.fromJsonSchema(${JSON.stringify(this.schemaObject)} as const)`)
     }
 
     /**
