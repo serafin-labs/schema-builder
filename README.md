@@ -25,24 +25,34 @@ Let's create simple User and Task schemas.
 
 ```typescript
 // Schema for the Task
-let taskSchema = SB.objectSchema({
-    name: SB.stringSchema(),
-    progress: SB.numberSchema(),
-    isCompleted: [SB.booleanSchema()],
-})
+let taskSchema = SB.objectSchema(
+    {
+        title: "Task",
+    },
+    {
+        name: SB.stringSchema(),
+        progress: SB.numberSchema(),
+        isCompleted: [SB.booleanSchema(), undefined],
+    },
+)
 
 // Schema for the User
-let userSchema = SB.objectSchema({
-    id: SB.stringSchema({ pattern: "\\w" }),
-    firstName: SB.stringSchema(),
-    lastName: SB.stringSchema(),
-    role: SB.enumSchema(["admin", "user"]),
-    email: SB.stringSchema({ format: "email" }),
-    tags: SB.arraySchema(SB.stringSchema(), { minItems: 1 }),
-    age: [SB.integerSchema()],
-    friendsIds: [SB.arraySchema(SB.stringSchema())],
-    tasks: SB.arraySchema(taskSchema),
-})
+let userSchema = SB.objectSchema(
+    {
+        title: "User",
+    },
+    {
+        id: SB.stringSchema({ pattern: "\\w" }),
+        firstName: SB.stringSchema(),
+        lastName: SB.stringSchema(),
+        role: SB.enumSchema(["admin", "user"]),
+        email: SB.stringSchema({ format: "email" }),
+        tags: SB.arraySchema(SB.stringSchema(), { minItems: 1 }),
+        age: [SB.integerSchema(), undefined],
+        friendsIds: [SB.arraySchema(SB.stringSchema()), undefined],
+        tasks: SB.arraySchema(taskSchema),
+    },
+)
 
 // References to generated interfaces
 type Task = typeof taskSchema.T
