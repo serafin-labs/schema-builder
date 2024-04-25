@@ -1075,24 +1075,22 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * @experimental
+     * @experimental This function might not handle properly all cases and its design is subject to change in the future
+     *
      * Generate the typescript code equivalent of the current schema.
-     * Useful when you want to generate SchemaBuilders from an OpenAPI spec.
+     * Useful when you want to generate code for an OpenAPI document while keeping the concise aspect of SchemaBuilder.
+     * @param customizeOutput you can provide a function to customize or replace entirely the output for a given Schema
      * @returns The generated variable name for the schema based on its "title" and the typescript code that should produce an equivalent schema
      */
-    toTypescript() {
-        return [this.schemaObject.title ? `${_.lowerFirst(this.schemaObject.title)}Schema` : "schema", this._toTypescript(true)] as const
+    toTypescript(customizeOutput?: (output: string, s: SchemaBuilder<any>) => string) {
+        return [this.schemaObject.title ? `${_.lowerFirst(this.schemaObject.title)}Schema` : "schema", this._toTypescript(true, customizeOutput)] as const
     }
 
     /**
      * Internal version of `toTypescript` used for recursion.
      * Recursive calls will have `processNamedSchema` set to `false` and will stop the recursion on any schema where the title is set.
      */
-    private _toTypescript(processNamedSchema: boolean): string {
-        if (!processNamedSchema && this.schemaObject.title) {
-            // Named schema should be handled separately. Generate its variable name instead of its schema code.
-            return `${_.lowerFirst(this.schemaObject.title)}Schema`
-        }
+    private _toTypescript(processNamedSchema: boolean, customizeOutput: ((output: string, s: SchemaBuilder<any>) => string) | undefined): string {
         function getSchemaBuilder(schemaObject: boolean | JSONSchema | undefined): SchemaBuilder<any> {
             if (schemaObject === true || schemaObject === undefined) {
                 return SchemaBuilder.anySchema()
@@ -1107,19 +1105,21 @@ export class SchemaBuilder<T> {
             result = result ? `${prefix}${result}` : ""
             return result.replaceAll("\\\\", "\\") // unescape
         }
-        function o(s: string) {
-            return s
+        const o = customizeOutput ?? ((output: string, s: SchemaBuilder<any>) => output)
+        if (!processNamedSchema && this.schemaObject.title) {
+            // Named schema should be handled separately. Generate its variable name instead of its schema code.
+            return o(`${_.lowerFirst(this.schemaObject.title)}Schema`, this)
         }
         let { type, ...restOfSchemaObject } = this.schemaObject
         if (type) {
             let isNull = false
             if (restOfSchemaObject.enum) {
                 const { enum: enumSchemaObject, ...restOfSchemaObjectForEnum } = restOfSchemaObject
-                return o(`SB.enumSchema(${JSON.stringify(enumSchemaObject)}, ${optionalStringify(restOfSchemaObjectForEnum)})`)
+                return o(`SB.enumSchema(${JSON.stringify(enumSchemaObject)}, ${optionalStringify(restOfSchemaObjectForEnum)})`, this)
             }
             if (Array.isArray(type)) {
                 if (type.length === 0) {
-                    return o(`SB.neverSchema(${optionalStringify(restOfSchemaObject)})`)
+                    return o(`SB.neverSchema(${optionalStringify(restOfSchemaObject)})`, this)
                 }
                 if (type.length === 1) {
                     type = type[0]
@@ -1135,48 +1135,61 @@ export class SchemaBuilder<T> {
                     case "boolean":
                     case "integer":
                     case "number":
-                        return o(`SB.${type}Schema(${optionalStringify(restOfSchemaObject, isNull)}${isNull ? ", true" : ""})`)
+                        return o(`SB.${type}Schema(${optionalStringify(restOfSchemaObject, isNull)}${isNull ? ", true" : ""})`, this)
                     case "null":
-                        return o(`SB.nullSchema(${optionalStringify(restOfSchemaObject)})`)
+                        return o(`SB.nullSchema(${optionalStringify(restOfSchemaObject)})`, this)
                     case "array":
                         const { items, ...restOfSchemaObjectForArray } = restOfSchemaObject
                         if (Array.isArray(items)) {
                             throw new Error(`Unimplemented tuple`) // @todo fix implementation when tuple are part of SchemaBuilder methods
                         }
                         return o(
-                            `SB.arraySchema(${getSchemaBuilder(items)._toTypescript(false)}${optionalStringify(restOfSchemaObjectForArray, isNull, ", ")}${
-                                isNull ? ", true" : ""
-                            })`,
+                            `SB.arraySchema(${getSchemaBuilder(items)._toTypescript(false, customizeOutput)}${optionalStringify(
+                                restOfSchemaObjectForArray,
+                                isNull,
+                                ", ",
+                            )}${isNull ? ", true" : ""})`,
+                            this,
                         )
                     case "object":
                         const { properties, required, additionalProperties, ...restOfSchemaObjectForObject } = restOfSchemaObject
                         return o(
                             `SB.objectSchema(${JSON.stringify(restOfSchemaObjectForObject)}, {${Object.entries(properties ?? {})
                                 .map((v) => {
-                                    const propertySchemaCode = getSchemaBuilder(v[1])._toTypescript(false)
+                                    const propertySchemaCode = getSchemaBuilder(v[1])._toTypescript(false, customizeOutput)
                                     return `"${v[0]}": ${required?.includes(v[0]) ? propertySchemaCode : `[${propertySchemaCode}, undefined]`}`
                                 })
                                 .join(", ")}}${isNull ? ", true" : ""})${
                                 additionalProperties
                                     ? `.addAdditionalProperties(${
-                                          additionalProperties === true ? "" : getSchemaBuilder(additionalProperties)._toTypescript(false)
+                                          additionalProperties === true ? "" : getSchemaBuilder(additionalProperties)._toTypescript(false, customizeOutput)
                                       })`
                                     : ""
                             }`,
+                            this,
                         )
                 }
             }
         } else if (restOfSchemaObject.allOf) {
-            return o(`SB.allOf(${restOfSchemaObject.allOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false)).join(", ")})`)
+            return o(
+                `SB.allOf(${restOfSchemaObject.allOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})`,
+                this,
+            )
         } else if (restOfSchemaObject.oneOf) {
-            return o(`SB.oneOf(${restOfSchemaObject.oneOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false)).join(", ")})`)
+            return o(
+                `SB.oneOf(${restOfSchemaObject.oneOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})`,
+                this,
+            )
         } else if (restOfSchemaObject.anyOf) {
-            return o(`SB.anyOf(${restOfSchemaObject.anyOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false)).join(", ")})`)
+            return o(
+                `SB.anyOf(${restOfSchemaObject.anyOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})`,
+                this,
+            )
         } else if (restOfSchemaObject.not) {
-            return o(`SB.not(${getSchemaBuilder(restOfSchemaObject.not)._toTypescript(false)})`)
+            return o(`SB.not(${getSchemaBuilder(restOfSchemaObject.not)._toTypescript(false, customizeOutput)})`, this)
         }
         // default to a literal schema for unhandled cases
-        return o(`SB.fromJsonSchema(${JSON.stringify(this.schemaObject)} as const)`)
+        return o(`SB.fromJsonSchema(${JSON.stringify(this.schemaObject)} as const)`, this)
     }
 
     /**

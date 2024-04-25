@@ -781,4 +781,21 @@ describe("Schema Builder", function () {
         const pa = schemaBuilder.getPropertyAccessor().o.s
         expect(pa.path).to.eql(["o", "s"])
     })
+
+    it("should generate code for a schema", function () {
+        let taskSchema = SB.objectSchema(
+            {
+                title: "Task",
+            },
+            {
+                name: SB.stringSchema(),
+                progress: SB.numberSchema(),
+                isCompleted: [SB.booleanSchema(), undefined],
+            },
+        )
+        expect(taskSchema.toTypescript()).to.eqls([
+            "taskSchema",
+            'SB.objectSchema({"title":"Task"}, {"name": SB.stringSchema(), "progress": SB.numberSchema(), "isCompleted": [SB.booleanSchema(), undefined]})',
+        ])
+    })
 })
