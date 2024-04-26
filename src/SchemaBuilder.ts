@@ -105,7 +105,7 @@ export class SchemaBuilder<T> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: nullable ? ["object", "null"] : "object",
-            properties,
+            ...(Object.keys(properties).length ? { properties } : {}),
             ...(required.length > 0 ? { required } : {}),
             additionalProperties: false,
         }
@@ -145,7 +145,7 @@ export class SchemaBuilder<T> {
      */
     static integerSchema<N extends boolean = false>(
         schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {},
-        nullable?: boolean,
+        nullable?: N,
     ): N extends true ? SchemaBuilder<number | null> : SchemaBuilder<number> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
@@ -159,7 +159,7 @@ export class SchemaBuilder<T> {
      */
     static booleanSchema<N extends boolean = false>(
         schema: Pick<JSONSchema, JSONSchemaBooleanProperties> = {},
-        nullable?: boolean,
+        nullable?: N,
     ): N extends true ? SchemaBuilder<boolean | null> : SchemaBuilder<boolean> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
@@ -206,7 +206,7 @@ export class SchemaBuilder<T> {
     static enumSchema<K extends string | number | boolean | null, N extends boolean = false>(
         values: readonly K[],
         schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
-        nullable?: boolean,
+        nullable?: N,
     ): N extends true ? SchemaBuilder<K | null> : SchemaBuilder<K> {
         const types = [] as JSONSchemaTypeName[]
         for (let value of values) {
@@ -237,7 +237,7 @@ export class SchemaBuilder<T> {
     static arraySchema<U, N extends boolean = false>(
         items: SchemaBuilder<U>,
         schema: Pick<JSONSchema, JSONSchemaArrayProperties> = {},
-        nullable?: boolean,
+        nullable?: N,
     ): N extends true ? SchemaBuilder<U[] | null> : SchemaBuilder<U[]> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
@@ -1103,7 +1103,7 @@ export class SchemaBuilder<T> {
         function optionalStringify(obj: any, force = false, prefix = "") {
             let result = force || (obj !== undefined && Object.keys(obj).length) ? JSON.stringify(obj) : undefined
             result = result ? `${prefix}${result}` : ""
-            return result.replaceAll("\\\\", "\\") // unescape
+            return result
         }
         const o = customizeOutput ?? ((output: string, s: SchemaBuilder<any>) => output)
         if (!processNamedSchema && this.schemaObject.title) {

@@ -11,13 +11,13 @@ npm i @serafin/schema-builder
 ## Why Schema Builder?
 
 JSON schema is the base of Open API so it's really important for Serafin framework.
-JSON Schema is powerfull but it is also verbose.
+JSON Schema is powerful but it is also verbose.
 
 On top of a JSON schema, you also have to create the Typescript interface that it represents. If you take in account other schemas and interfaces you have to define (one for the post body, one for the patch body, one for get query parameters, etc.), it starts to be problematic.
 
 Schema builder is here to save you from all this tedious work!
 
-To summarize, this library allows you to programatically create a JSON Schema and its associated typescript type **at the same time**.
+To summarize, this library allows you to programmatically create a JSON Schema and its associated typescript type **at the same time**.
 
 ## A quick example
 
