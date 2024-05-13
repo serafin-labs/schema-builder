@@ -24,26 +24,26 @@
         "url": "https://github.com/serafin-labs/schema-builder"
     },
     "dependencies": {
-        "ajv": "^8.12.0",
+        "ajv": "^8.13.0",
         "ajv-formats": "^3.0.1",
         "lodash": "^4.17.21",
         "verror": "^1.10.1"
     },
     "devDependencies": {
         "@istanbuljs/nyc-config-typescript": "^1.0.2",
-        "@types/chai": "^4.3.14",
-        "@types/lodash": "^4.17.0",
+        "@types/chai": "^4.3.16",
+        "@types/lodash": "^4.17.1",
         "@types/mocha": "^10.0.6",
-        "@types/node": "^20.12.4",
+        "@types/node": "^20.12.11",
         "@types/verror": "^1.10.10",
-        "chai": "^5.1.0",
+        "chai": "^5.1.1",
         "concurrently": "^8.2.2",
         "mocha": "^10.4.0",
         "nyc": "^15.1.0",
         "ts-lint": "^4.5.1",
         "tslint-config-airbnb": "^5.11.2",
-        "tsx": "^4.7.2",
-        "typescript": "^5.4.4"
+        "tsx": "^4.10.2",
+        "typescript": "^5.4.5"
     },
     "scripts": {
         "test": "NODE_OPTIONS='--import tsx --no-warnings' nyc mocha --recursive ./src/test/**/*.spec.ts",
