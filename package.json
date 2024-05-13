@@ -46,12 +46,12 @@
         "typescript": "^5.4.5"
     },
     "scripts": {
-        "test": "NODE_OPTIONS='--import tsx --no-warnings' nyc mocha --recursive ./src/test/**/*.spec.ts",
+        "test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --recursive ./src/test/**/*.spec.ts",
         "predev": "npm install",
         "dev": "concurrently -c auto -n '' npm:dev:cjs npm:dev:test",
         "dev:cjs": "tsc --watch --preserveWatchOutput --project tsconfig.cjs.json",
         "dev:esm": "tsc --watch --preserveWatchOutput",
-        "dev:test": "NODE_OPTIONS='--import tsx --no-warnings' nyc mocha --reporter dot --watch --watch-files src --extension ts ./src/test/**/*.spec.ts",
+        "dev:test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --reporter dot --watch --watch-files src --extension ts ./src/test/**/*.spec.ts",
         "build": "npm run build:cjs",
         "build:cjs": "tsc --project tsconfig.cjs.json",
         "build:esm": "tsc",
