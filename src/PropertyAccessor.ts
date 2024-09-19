@@ -29,6 +29,26 @@ function setWithPath(path: PropertyAccessorPath, data: any, value: any) {
 }
 
 /**
+ * Unset a deep property and ensure that any object/array along the path is copied
+ */
+function unsetWithPath(path: PropertyAccessorPath, data: any) {
+    data = { ...data }
+    let current: any = data
+    for (let i = 0; i < path.length; ++i) {
+        const key = path[i]
+        if (i === path.length - 1) {
+            delete current[key]
+        }
+        if (!current[key]) {
+            break
+        }
+        current[key] = Array.isArray(current[key]) ? [...current[key]] : { ...current[key] }
+        current = current[key]
+    }
+    return data
+}
+
+/**
  * Interface of a read only property accessor
  * It contains a path to a property in `D` with a `get` function to retrieve its value and a `schema` corresponding to the targeted property
  */
@@ -49,11 +69,14 @@ export interface ReadOnlyPropertyAccessor<D, V, PATH extends PropertyAccessorPat
 }
 
 /**
- * Interface of a property accessor
- * It contains a path to a property in `D` with a `get` function to retrieve its value, a `set` function to modify it and a `schema` corresponding to the targeted property
+ * Interface of a property accessor that contains
+ * - a path to a property in `D` with a `get` function to retrieve its value
+ * - a `set` function to modify it and a `schema` corresponding to the targeted property
+ * - a `unset` function to remove the property from `D`
  */
 export interface PropertyAccessor<D, V, PATH extends PropertyAccessorPath = PropertyAccessorPath> extends ReadOnlyPropertyAccessor<D, V, PATH> {
     set<D2 extends D>(data: D2, value: V): D2
+    unset<D3 extends D>(data: D3): D3
 }
 
 /**
@@ -75,11 +98,9 @@ export type PropertyAccessorBuilder<D, V, PATH extends PropertyAccessorPath> = P
      * ```
      * When accessing an element of a tuple type (ex: `[string, number]`), you should always use the proxy syntax instead to have a more precise type.
      */
-    <K extends keyof V & (string | number)>(k: V extends any[] ? number : K): PropertyAccessorBuilder<
-        D,
-        V extends any[] ? V[number] : V[K],
-        [...PATH, V extends any[] ? number : K]
-    >
+    <K extends keyof V & (string | number)>(
+        k: V extends any[] ? number : K,
+    ): PropertyAccessorBuilder<D, V extends any[] ? V[number] : V[K], [...PATH, V extends any[] ? number : K]>
     /**
      * You can call a final `transform` function to transform the value before getting or setting it
      * @example ```ts
@@ -127,7 +148,7 @@ export type ReadOnlyPropertyAccessorResolver<D, V, PATH extends PropertyAccessor
     pa: PropertyAccessorBuilder<D, D, []>,
 ) => ReadOnlyPropertyAccessor<D, V, PATH>
 
-export const propertyAccessorReservedProperties = ["get", "set", "path", "schema", "narrow", "transform"]
+export const propertyAccessorReservedProperties = ["get", "set", "unset", "path", "schema", "narrow", "transform"]
 
 /**
  * Create a property accessor builder of D
@@ -153,6 +174,7 @@ export function createPropertyAccessor<D>(s?: SchemaBuilder<D>) {
         }
         propertyAccessor.get = (data: D) => getWithPath(path, data) as V
         propertyAccessor.set = <D2 extends D>(data: D2, value: V) => setWithPath(path, data, value) as D2
+        propertyAccessor.unset = <D3 extends D>(data: D3) => unsetWithPath(path, data) as D3
         propertyAccessor.path = path
         propertyAccessor.schema = s
         propertyAccessor.transform = <T>(getValueMapping: (value: V) => T, setValueMapping?: (value: T, target: V) => V) => {
