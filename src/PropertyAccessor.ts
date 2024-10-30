@@ -98,9 +98,11 @@ export type PropertyAccessorBuilder<D, V, PATH extends PropertyAccessorPath> = P
      * ```
      * When accessing an element of a tuple type (ex: `[string, number]`), you should always use the proxy syntax instead to have a more precise type.
      */
-    <K extends keyof V & (string | number)>(
-        k: V extends any[] ? number : K,
-    ): PropertyAccessorBuilder<D, V extends any[] ? V[number] : V[K], [...PATH, V extends any[] ? number : K]>
+    <K extends keyof V & (string | number)>(k: V extends any[] ? number : K): PropertyAccessorBuilder<
+        D,
+        V extends any[] ? Exclude<V[number], undefined> : Exclude<V[K], undefined>,
+        [...PATH, V extends any[] ? number : K]
+    >
     /**
      * You can call a final `transform` function to transform the value before getting or setting it
      * @example ```ts
@@ -131,7 +133,7 @@ export type PropertyAccessorBuilder<D, V, PATH extends PropertyAccessorPath> = P
      * pa.anArray[0].aString
      * ```
      */
-    [P in keyof V & (string | number)]: PropertyAccessorBuilder<D, V[P], [...PATH, P]>
+    [P in keyof V & (string | number)]: PropertyAccessorBuilder<D, Exclude<V[P], undefined>, [...PATH, P]>
 }
 
 /**

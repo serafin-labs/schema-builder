@@ -13,7 +13,7 @@ describe("Property Accessor", function () {
     })
 
     it("should get, set and unset a deeply nested property", function () {
-        const schema = SchemaBuilder.emptySchema({}).addString("s").addProperty("o", SchemaBuilder.emptySchema().addNumber("n"))
+        const schema = SchemaBuilder.emptySchema({}).addString("s").addProperty("o", SchemaBuilder.emptySchema().addNumber("n"), false)
         const data: typeof schema.T = { s: "test", o: { n: 42 } }
         const pa = createPropertyAccessor<typeof schema.T>().o.n
         expect(pa.path).eqls(["o", "n"])
