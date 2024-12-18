@@ -1,4 +1,4 @@
-import Ajv, { Options } from "ajv"
+import Ajv, { Options, ValidateFunction } from "ajv"
 import VError from "verror"
 import _ from "lodash"
 import addFormats from "ajv-formats"
@@ -1006,8 +1006,8 @@ export class SchemaBuilder<T> {
             throw validationError(this.ajv.errorsText(this.validationFunction.errors), this.validationFunction.errors)
         }
     }
-    protected ajv: any
-    protected validationFunction: any
+    protected ajv!: Ajv
+    protected validationFunction!: ValidateFunction<T>
 
     /**
      * Validate the given list of object against the schema. If any object is invalid, an error is thrown with the appropriate details.
@@ -1022,8 +1022,8 @@ export class SchemaBuilder<T> {
             throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors), this.listValidationFunction.errors)
         }
     }
-    protected ajvList: any
-    protected listValidationFunction: any
+    protected ajvList!: Ajv
+    protected listValidationFunction!: ValidateFunction<T[]>
 
     /**
      * Change the default Ajv configuration to use the given values.
@@ -1037,6 +1037,8 @@ export class SchemaBuilder<T> {
         removeAdditional: false,
         useDefaults: true,
         strict: false,
+        allErrors: true,
+        verbose: true,
     } as Options
 
     get ajvValidationConfig() {
