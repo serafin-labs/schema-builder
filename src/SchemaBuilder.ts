@@ -22,6 +22,7 @@ import {
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
 import { throughJsonSchema, cloneJSON, setRequired } from "./utils.js"
 import { createPropertyAccessor } from "./PropertyAccessor.js"
+import { configManager } from "./ConfigManager.js"
 
 /**
  * Represents a JSON Schema and its type.
@@ -1032,18 +1033,10 @@ export class SchemaBuilder<T> {
     configureValidation(validationConfig: Options) {
         return new SchemaBuilder<T>(cloneJSON(this.schemaObject), validationConfig)
     }
-    protected defaultValidationConfig = {
-        coerceTypes: false,
-        removeAdditional: false,
-        useDefaults: true,
-        strict: false,
-        allErrors: true,
-        verbose: true,
-    } as Options
 
     get ajvValidationConfig() {
         return {
-            ...this.defaultValidationConfig,
+            ...configManager.getAJVConfig(),
             ...this.validationConfig,
         }
     }

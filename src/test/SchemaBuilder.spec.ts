@@ -839,6 +839,9 @@ describe("Schema Builder", function () {
                 } as any)
             } catch (error) {
                 expect(error).to.exist
+                expect(error.message).to.equal(
+                    "Invalid parameters: data must have required property 'as', data/ao/bo/ciMinMax must be >= 10, data/aaeOpt/3 must be equal to one of the allowed values",
+                )
             }
         })
     })
