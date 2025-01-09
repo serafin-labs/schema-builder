@@ -22,12 +22,35 @@ import {
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
 import { throughJsonSchema, cloneJSON, setRequired } from "./utils.js"
 import { createPropertyAccessor } from "./PropertyAccessor.js"
-import { configManager } from "./ConfigManager.js"
 
 /**
  * Represents a JSON Schema and its type.
  */
 export class SchemaBuilder<T> {
+    private static globalAJVConfig: Options = {
+        coerceTypes: false,
+        removeAdditional: false,
+        useDefaults: true,
+        strict: false,
+        allErrors: true,
+    }
+    private static globalAJVConfigVersionNumber = 0
+    private localValidationFunctionVersionNumber: number = 0
+    private localListValidationFunctionVersionNumber: number = 0
+
+    /**
+     * Sets the global validation configuration for the schema builder.
+     * This method merges the provided configuration with the existing global configuration
+     * Will invalidate all the existing cached validation functions.
+     */
+    static setGlobalValidationConfig(config: Options) {
+        this.globalAJVConfig = { ...this.globalAJVConfig, ...config }
+        this.globalAJVConfigVersionNumber++
+    }
+    static get globalAJVValidationConfig() {
+        return this.globalAJVConfig
+    }
+
     /**
      * Get the JSON schema object
      */
@@ -1036,7 +1059,7 @@ export class SchemaBuilder<T> {
 
     get ajvValidationConfig() {
         return {
-            ...configManager.getAJVConfig(),
+            ...SchemaBuilder.globalAJVConfig,
             ...this.validationConfig,
         }
     }
@@ -1046,7 +1069,8 @@ export class SchemaBuilder<T> {
      */
     cacheValidationFunction() {
         // prepare validation function
-        if (!this.validationFunction) {
+        if (!this.validationFunction || this.localValidationFunctionVersionNumber !== SchemaBuilder.globalAJVConfigVersionNumber) {
+            this.localValidationFunctionVersionNumber = SchemaBuilder.globalAJVConfigVersionNumber
             this.ajv = new Ajv(this.ajvValidationConfig)
             addFormats(this.ajv)
             this.validationFunction = this.ajv.compile(this.schemaObject)
@@ -1057,7 +1081,8 @@ export class SchemaBuilder<T> {
      */
     cacheListValidationFunction() {
         // prepare validation function
-        if (!this.listValidationFunction) {
+        if (!this.listValidationFunction || this.localListValidationFunctionVersionNumber !== SchemaBuilder.globalAJVConfigVersionNumber) {
+            this.localListValidationFunctionVersionNumber = SchemaBuilder.globalAJVConfigVersionNumber
             this.ajvList = new Ajv(this.ajvValidationConfig)
             addFormats(this.ajvList)
             this.ajvList.addSchema(this.schemaObject, "schema")

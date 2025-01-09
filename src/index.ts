@@ -1,4 +1,3 @@
-export * from "./ConfigManager.js"
 export * from "./SchemaBuilder.js"
 export * from "./JsonSchemaType.js"
 export * from "./JsonSchema.js"
