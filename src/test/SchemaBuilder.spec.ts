@@ -798,4 +798,82 @@ describe("Schema Builder", function () {
             'SB.objectSchema({"title":"Task"}, {"name": SB.stringSchema(), "progress": SB.numberSchema(), "isCompleted": [SB.booleanSchema(), undefined]})',
         ])
     })
+
+    describe("Error messages testings", function () {
+        const advancedSchema = SB.emptySchema({ title: "AdvancedSchema", description: "This is an advanced schema" })
+            .addString("asOptNull", {}, false, true)
+            .addProperty(
+                "ao",
+                SB.emptySchema()
+                    .addProperty(
+                        "bo",
+                        SB.emptySchema()
+                            .addProperty("co", SB.emptySchema().addString("ds").addBoolean("db").addArray("das", SB.stringSchema()))
+                            .addEnum("ce", ["ce1", "ce2", "ce3"])
+                            .addInteger("ciMinMax", { title: "ci", minimum: 10, maximum: 100 })
+                            .addNumber("cn"),
+                    )
+                    .addArray(
+                        "bao",
+                        SB.emptySchema()
+                            .addString("esOpt", {}, false)
+                            .addBoolean("ebOptNull", {}, false, true)
+                            .addArray("ea", SB.numberSchema())
+                            .addBoolean("ebOpt", {}, false),
+                    ),
+            )
+            .addString("as")
+            .addArray("aaeOpt", SB.enumSchema(["aae1", "aae2", "aae3"]), {}, false)
+            .addProperty("ao2Opt", SB.emptySchema().addAdditionalProperties(), false)
+
+        it("should return detailed error messages for nested properties", function () {
+            try {
+                advancedSchema.validate({
+                    ao: {
+                        bo: { co: { ds: "a", db: true, das: ["a", "b", "c"] }, ce: "ce1", ciMinMax: 9, cn: 12.34 },
+                        bao: [{ esOpt: "test", ebOptNull: null, ea: [1, 2, 3] }],
+                    },
+                    ao2Opt: { a: 42 },
+                    aaeOpt: ["aae1", "aae2", "aae3", "aae4"],
+                    asOptNull: "",
+                } as any)
+            } catch (error) {
+                expect(error).to.exist
+                expect(error.message).to.equal(
+                    "Invalid parameters: data must have required property 'as', data/ao/bo/ciMinMax must be >= 10, data/aaeOpt/3 must be equal to one of the allowed values",
+                )
+            }
+        })
+    })
+})
+
+describe("Test Side Effects With global AJV config", function () {
+    it("should change the global configuration of validation an validate differently", function () {
+        SB.setGlobalValidationConfig({ allErrors: true })
+        let testSchema = SB.objectSchema(
+            {},
+            {
+                name: SB.stringSchema(),
+                progress: SB.numberSchema(),
+                isCompleted: [SB.booleanSchema(), undefined],
+            },
+        )
+        let allErrorsMessage = ""
+        let firstErrorMessageOnly = ""
+        try {
+            testSchema.validate({} as any)
+        } catch (error) {
+            allErrorsMessage = error.message
+            expect(error.message).to.equal("Invalid parameters: data must have required property 'name', data must have required property 'progress'")
+        }
+        SB.setGlobalValidationConfig({ allErrors: false })
+        try {
+            testSchema.validate({} as any)
+        } catch (error) {
+            firstErrorMessageOnly = error.message
+            expect(error.message).to.equal("Invalid parameters: data must have required property 'name'")
+        }
+        expect(allErrorsMessage === firstErrorMessageOnly).to.be.false
+        expect(allErrorsMessage.includes(firstErrorMessageOnly)).to.be.true
+    })
 })

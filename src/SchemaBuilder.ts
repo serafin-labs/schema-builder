@@ -1,4 +1,4 @@
-import Ajv, { Options } from "ajv"
+import Ajv, { Options, ValidateFunction } from "ajv"
 import VError from "verror"
 import _ from "lodash"
 import addFormats from "ajv-formats"
@@ -27,6 +27,30 @@ import { createPropertyAccessor } from "./PropertyAccessor.js"
  * Represents a JSON Schema and its type.
  */
 export class SchemaBuilder<T> {
+    private static globalAJVConfig: Options = {
+        coerceTypes: false,
+        removeAdditional: false,
+        useDefaults: true,
+        strict: false,
+        allErrors: true,
+    }
+    private static globalAJVConfigVersionNumber = 0
+    private localValidationFunctionVersionNumber: number = 0
+    private localListValidationFunctionVersionNumber: number = 0
+
+    /**
+     * Sets the global validation configuration for the schema builder.
+     * This method merges the provided configuration with the existing global configuration
+     * Will invalidate all the existing cached validation functions.
+     */
+    static setGlobalValidationConfig(config: Options) {
+        this.globalAJVConfig = { ...this.globalAJVConfig, ...config }
+        this.globalAJVConfigVersionNumber++
+    }
+    static get globalAJVValidationConfig() {
+        return this.globalAJVConfig
+    }
+
     /**
      * Get the JSON schema object
      */
@@ -1006,8 +1030,8 @@ export class SchemaBuilder<T> {
             throw validationError(this.ajv.errorsText(this.validationFunction.errors), this.validationFunction.errors)
         }
     }
-    protected ajv: any
-    protected validationFunction: any
+    protected ajv!: Ajv
+    protected validationFunction!: ValidateFunction<T>
 
     /**
      * Validate the given list of object against the schema. If any object is invalid, an error is thrown with the appropriate details.
@@ -1022,8 +1046,8 @@ export class SchemaBuilder<T> {
             throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors), this.listValidationFunction.errors)
         }
     }
-    protected ajvList: any
-    protected listValidationFunction: any
+    protected ajvList!: Ajv
+    protected listValidationFunction!: ValidateFunction<T[]>
 
     /**
      * Change the default Ajv configuration to use the given values.
@@ -1032,16 +1056,10 @@ export class SchemaBuilder<T> {
     configureValidation(validationConfig: Options) {
         return new SchemaBuilder<T>(cloneJSON(this.schemaObject), validationConfig)
     }
-    protected defaultValidationConfig = {
-        coerceTypes: false,
-        removeAdditional: false,
-        useDefaults: true,
-        strict: false,
-    } as Options
 
     get ajvValidationConfig() {
         return {
-            ...this.defaultValidationConfig,
+            ...SchemaBuilder.globalAJVConfig,
             ...this.validationConfig,
         }
     }
@@ -1051,7 +1069,8 @@ export class SchemaBuilder<T> {
      */
     cacheValidationFunction() {
         // prepare validation function
-        if (!this.validationFunction) {
+        if (!this.validationFunction || this.localValidationFunctionVersionNumber !== SchemaBuilder.globalAJVConfigVersionNumber) {
+            this.localValidationFunctionVersionNumber = SchemaBuilder.globalAJVConfigVersionNumber
             this.ajv = new Ajv(this.ajvValidationConfig)
             addFormats(this.ajv)
             this.validationFunction = this.ajv.compile(this.schemaObject)
@@ -1062,7 +1081,8 @@ export class SchemaBuilder<T> {
      */
     cacheListValidationFunction() {
         // prepare validation function
-        if (!this.listValidationFunction) {
+        if (!this.listValidationFunction || this.localListValidationFunctionVersionNumber !== SchemaBuilder.globalAJVConfigVersionNumber) {
+            this.localListValidationFunctionVersionNumber = SchemaBuilder.globalAJVConfigVersionNumber
             this.ajvList = new Ajv(this.ajvValidationConfig)
             addFormats(this.ajvList)
             this.ajvList.addSchema(this.schemaObject, "schema")
