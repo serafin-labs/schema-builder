@@ -34,6 +34,9 @@ export function throughJsonSchema(schema: JSONSchema | JSONSchema[], action: (sc
         if (schema.not) {
             throughJsonSchema(schema.not as JSONSchema, action)
         }
+        if (schema.patternProperties) {
+            throughJsonSchema(schema.patternProperties, action)
+        }
         if (schema.additionalProperties && typeof schema.additionalProperties !== "boolean") {
             throughJsonSchema(schema.additionalProperties, action)
         }

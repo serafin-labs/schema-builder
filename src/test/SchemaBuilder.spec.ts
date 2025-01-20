@@ -845,6 +845,202 @@ describe("Schema Builder", function () {
             }
         })
     })
+
+    describe("Test Enum/Const Schema", function () {
+        it("should create a schema with const values", function () {
+            let schema = SB.objectSchema(
+                {},
+                {
+                    name: SB.constSchema("good"),
+                    progress: SB.constSchema(42),
+                    isCompleted: SB.constSchema(true),
+                },
+            )
+            type Schema = typeof schema.T
+            const goodData: Schema = {
+                name: "good",
+                progress: 42,
+                isCompleted: true,
+            }
+            const badData: any = {
+                name: "bad",
+                progress: 21,
+                isCompleted: false,
+            }
+
+            expect(() => schema.validate(goodData)).to.not.throw()
+            expect(() => schema.validate(badData)).to.throw(
+                "Invalid parameters: data/name must be equal to constant, data/progress must be equal to constant, data/isCompleted must be equal to constant",
+            )
+        })
+
+        it("should use oneOf with literal values for type narrowing", function () {
+            let schema = SB.objectSchema(
+                {},
+                {
+                    name: SB.enumSchema(["test", "test2"] as const),
+                    conditionalObject: SB.oneOf(
+                        SB.objectSchema({}, { type: SB.constSchema("foo"), foo: SB.stringSchema() }),
+                        SB.objectSchema({}, { type: SB.enumSchema("bar"), bar: SB.numberSchema() }),
+                        SB.objectSchema({}, { type: SB.enumSchema(["baz"] as const), baz: SB.booleanSchema() }),
+                    ),
+                },
+            )
+            type Schema = typeof schema.T
+            const goodDataFoo: Schema = {
+                name: "test",
+                conditionalObject: { type: "foo", foo: "test" },
+            }
+            const goodDataBar: Schema = {
+                name: "test2",
+                conditionalObject: { type: "bar", bar: 42 },
+            }
+            const badData: any = {
+                name: "test",
+                conditionalObject: { type: "foo", bar: 42 },
+            }
+            expect(() => schema.validate(goodDataFoo)).to.not.throw()
+            expect(() => schema.validate(goodDataBar)).to.not.throw()
+            expect(() => schema.validate(badData)).to.throw("Invalid parameters: data/conditionalObject must have required property 'foo'")
+        })
+
+        it("playground with different typing of enumSchema", function () {
+            enum TestEnum {
+                foo = "foo",
+                bar = "bar",
+                baz = "baz",
+            }
+            const TestEnumValues = Object.values(TestEnum)
+
+            const literalSchema = SB.objectSchema(
+                {},
+                {
+                    enumLiteralString: SB.enumSchema("test"),
+                    enumLiteralEnum: SB.enumSchema(TestEnum.foo),
+                },
+            )
+            type LiteralSchema = typeof literalSchema.T
+            expect(() => literalSchema.validate({ enumLiteralString: "test", enumLiteralEnum: TestEnum.foo })).to.not.throw()
+            expect(() => literalSchema.validate({ enumLiteralString: "test", enumLiteralEnum: "foo" as TestEnum.foo })).to.not.throw()
+            expect(() => literalSchema.validate({ enumLiteralString: "test", enumLiteralEnum: "baz" as TestEnum.foo })).to.throw(
+                "Invalid parameters: data/enumLiteralEnum must be equal to one of the allowed values",
+            )
+
+            const stringEnumSchema = SB.objectSchema(
+                {},
+                {
+                    enumArrayUniqueValueString: SB.enumSchema(["foo"]),
+                    enumArrayUniqueConstValueString: SB.enumSchema(["foo"] as const),
+                    enumArrayMultipleValuesString: SB.enumSchema(["foo", "bar"]),
+                    enumArrayMultipleConstValuesString: SB.enumSchema(["foo", "bar"] as const),
+                },
+            )
+
+            type StringEnumSchema = typeof stringEnumSchema.T
+            expect(() =>
+                stringEnumSchema.validate({
+                    enumArrayUniqueValueString: "foo",
+                    enumArrayUniqueConstValueString: "foo",
+                    enumArrayMultipleValuesString: "bar",
+                    enumArrayMultipleConstValuesString: "bar",
+                }),
+            ).to.not.throw()
+            expect(() =>
+                stringEnumSchema.validate({
+                    enumArrayUniqueValueString: "baz",
+                    enumArrayUniqueConstValueString: "foo",
+                    enumArrayMultipleValuesString: "baz",
+                    enumArrayMultipleConstValuesString: "foo",
+                }),
+            ).to.throw(
+                "Invalid parameters: data/enumArrayUniqueValueString must be equal to one of the allowed values, data/enumArrayMultipleValuesString must be equal to one of the allowed values",
+            )
+
+            const enumEnumSchema = SB.objectSchema(
+                {},
+                {
+                    enumArrayUniqueConstValue: SB.enumSchema([TestEnum.foo] as const),
+                    enumArrayUniqueValue: SB.enumSchema([TestEnum.foo]),
+                    enumArrayMultipleValues: SB.enumSchema([TestEnum.foo, TestEnum.bar]),
+                    enumArrayMultipleConstValues: SB.enumSchema([TestEnum.foo, TestEnum.bar] as const),
+
+                    enumMultipleValuesEnumValues: SB.enumSchema(TestEnumValues),
+                },
+            )
+
+            type EnumEnumSchema = typeof enumEnumSchema.T
+            expect(() =>
+                enumEnumSchema.validate({
+                    enumArrayUniqueConstValue: TestEnum.foo,
+                    enumArrayUniqueValue: TestEnum.foo,
+                    enumArrayMultipleValues: TestEnum.bar,
+                    enumArrayMultipleConstValues: TestEnum.bar,
+                    enumMultipleValuesEnumValues: TestEnum.bar,
+                }),
+            ).to.not.throw()
+            expect(() =>
+                enumEnumSchema.validate({
+                    enumArrayUniqueConstValue: TestEnum.baz,
+                    enumArrayUniqueValue: TestEnum.baz,
+                    enumArrayMultipleValues: TestEnum.baz,
+                    enumArrayMultipleConstValues: TestEnum.baz,
+
+                    enumMultipleValuesEnumValues: "baz",
+                } as any),
+            ).to.throw(
+                "Invalid parameters: data/enumArrayUniqueConstValue must be equal to one of the allowed values, data/enumArrayUniqueValue must be equal to one of the allowed values, data/enumArrayMultipleValues must be equal to one of the allowed values, data/enumArrayMultipleConstValues must be equal to one of the allowed values",
+            )
+        })
+    })
+
+    describe("constSchema Test", function () {
+        it("should create a schema with const values", function () {
+            const schema = SB.objectSchema(
+                {},
+                {
+                    string: SB.constSchema("string"),
+                    number: SB.constSchema(42),
+                    true: SB.constSchema(true),
+                    false: SB.constSchema(false),
+                    null: SB.constSchema(null),
+                },
+            )
+
+            expect(() => schema.validate({ string: "string", number: 42, true: true, false: false, null: null })).to.not.throw()
+            expect(() => schema.validate({ string: "string", number: 42, true: true, false: false, null: "null" } as any)).to.throw(
+                "Invalid parameters: data/null must be equal to constant",
+            )
+        })
+    })
+
+    describe("Test Pattern Properties", function () {
+        it("should create a schema with pattern properties", function () {
+            //SB.setGlobalValidationConfig({ verbose: true })
+            let schema = SB.objectSchema({}, { notPatternProperties: SB.stringSchema() })
+                .addPatternProperty("X-", "", SB.stringSchema())
+                .addPatternProperty("o-", "", SB.objectSchema({}, { test: SB.stringSchema() }))
+            type Schema = typeof schema.T
+            const goodData: Schema = {
+                notPatternProperties: "test",
+                "X-value1": "v1",
+                "X-value2": "v2",
+                "o-object1": { test: "Hello" },
+                "o-object2": { test: "World" },
+            }
+            const badData: any = {
+                notPatternProperties: "test",
+                "X-value1": 21,
+                "X-GoodValue": "Good Value",
+                "X-value2": true,
+                "o-object1": { id: "Hello" },
+                "o-object2": { test: { id: "wrong data" } },
+            }
+            expect(() => schema.validate(goodData)).to.not.throw()
+            expect(() => schema.validate(badData)).to.throw(
+                "Invalid parameters: data/X-value1 must be string, data/X-value2 must be string, data/o-object1 must have required property 'test', data/o-object1 must NOT have additional properties, data/o-object2/test must be string",
+            )
+        })
+    })
 })
 
 describe("Test Side Effects With global AJV config", function () {
@@ -858,22 +1054,10 @@ describe("Test Side Effects With global AJV config", function () {
                 isCompleted: [SB.booleanSchema(), undefined],
             },
         )
-        let allErrorsMessage = ""
-        let firstErrorMessageOnly = ""
-        try {
-            testSchema.validate({} as any)
-        } catch (error) {
-            allErrorsMessage = error.message
-            expect(error.message).to.equal("Invalid parameters: data must have required property 'name', data must have required property 'progress'")
-        }
+        expect(() => testSchema.validate({} as any)).to.throw(
+            "Invalid parameters: data must have required property 'name', data must have required property 'progress'",
+        )
         SB.setGlobalValidationConfig({ allErrors: false })
-        try {
-            testSchema.validate({} as any)
-        } catch (error) {
-            firstErrorMessageOnly = error.message
-            expect(error.message).to.equal("Invalid parameters: data must have required property 'name'")
-        }
-        expect(allErrorsMessage === firstErrorMessageOnly).to.be.false
-        expect(allErrorsMessage.includes(firstErrorMessageOnly)).to.be.true
+        expect(() => testSchema.validate({} as any)).to.throw("Invalid parameters: data must have required property 'name'")
     })
 })

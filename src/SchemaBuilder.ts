@@ -226,14 +226,16 @@ export class SchemaBuilder<T> {
 
     /**
      * Create an enum schema
+     * For array values, using "as const" make the typing a literal union if narrowing type is wanted.
      */
     static enumSchema<K extends string | number | boolean | null, N extends boolean = false>(
-        values: readonly K[],
+        values: K | readonly K[],
         schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
         nullable?: N,
     ): N extends true ? SchemaBuilder<K | null> : SchemaBuilder<K> {
+        const valuesArray = Array.isArray(values) ? values : [values]
         const types = [] as JSONSchemaTypeName[]
-        for (let value of values) {
+        for (let value of valuesArray) {
             if (typeof value === "string" && !types.find((type) => type === "string")) {
                 types.push("string")
             }
@@ -250,8 +252,20 @@ export class SchemaBuilder<T> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: types.length === 1 ? types[0] : types,
-            enum: nullable && values.findIndex((v) => v === null) === -1 ? [...values, null] : [...values],
+            enum: nullable && valuesArray.findIndex((v) => v === null) === -1 ? [...valuesArray, null] : [...valuesArray],
         }
+        return new SchemaBuilder(s) as any
+    }
+
+    /**
+     * Create a constant schema. Useful for narrowing types.
+     */
+    static constSchema<K extends string | number | boolean | null>(value: K, schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {}): SchemaBuilder<K> {
+        let s: JSONSchema = {
+            ...cloneJSON(schema),
+            const: value,
+        }
+
         return new SchemaBuilder(s) as any
     }
 
@@ -483,6 +497,23 @@ export class SchemaBuilder<T> {
         }
         let schemaObject = cloneJSON(this.schemaObject)
         schemaObject.additionalProperties = schemaBuilder ? cloneJSON(schemaBuilder.schemaObject) : true
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Add pattern properties to schema.
+     */
+    addPatternProperty<U = any, PPK extends string = "", SPK extends string = "">(
+        prefixPattern: PPK,
+        suffixPattern: SPK,
+        schemaBuilder: SchemaBuilder<U> | true = true,
+    ): SchemaBuilder<{ [Key in keyof T | `${PPK}${string}${SPK}`]: Key extends keyof T ? T[Key] : U }> {
+        const newPatternKey = `^${prefixPattern}.*${suffixPattern}$`
+        let schemaObject = cloneJSON(this.schemaObject)
+        schemaObject.patternProperties = {
+            ...schemaObject.patternProperties,
+            [newPatternKey]: schemaBuilder === true ? true : cloneJSON(schemaBuilder.schemaObject),
+        }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
