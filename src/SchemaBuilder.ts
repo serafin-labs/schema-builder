@@ -934,11 +934,18 @@ export class SchemaBuilder<T> {
      * Extract the item schema of the current array schema
      */
     getItemsSubschema() {
-        if (!this.schemaObject || this.schemaObject.type !== "array" || !this.schemaObject.items || Array.isArray(this.schemaObject.items)) {
+        if (!this.schemaObject || !this.isArraySchema || !this.schemaObject.items || Array.isArray(this.schemaObject.items)) {
             throw new VError(`Schema Builder Error: 'getItemsSubschema' can only be used with an array schema with non-array items`)
         } else {
             return new SchemaBuilder<T extends Array<infer ITEMS> ? ITEMS : never>(this.schemaObject.items as JSONSchema)
         }
+    }
+
+    /**
+     * Determine if the 'type' property of the schema contains the given type
+     */
+    hasType(type: JSONSchemaTypeName) {
+        return !!this.schemaObject && (Array.isArray(this.schemaObject.type) ? this.schemaObject.type.includes(type) : this.schemaObject.type === type)
     }
 
     /**
@@ -960,14 +967,14 @@ export class SchemaBuilder<T> {
      * true if the schema represent an object
      */
     get isObjectSchema() {
-        return this.schemaObject.type === "object" || (!("type" in this.schemaObject) && "properties" in this.schemaObject)
+        return this.hasType("object") || (!("type" in this.schemaObject) && "properties" in this.schemaObject)
     }
 
     /**
      * true if the schema represent an array
      */
     get isArraySchema() {
-        return this.schemaObject.type === "array" && !("properties" in this.schemaObject)
+        return this.hasType("array") || (!("type" in this.schemaObject) && "items" in this.schemaObject)
     }
 
     /**

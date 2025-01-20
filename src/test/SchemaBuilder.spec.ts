@@ -751,7 +751,7 @@ describe("Schema Builder", function () {
     })
 
     it("should get a array subschema", function () {
-        let schemaBuilder1 = SB.arraySchema(SB.emptySchema().addString("test"))
+        let schemaBuilder1 = SB.arraySchema(SB.emptySchema().addString("test"), {}, true)
         let schemaBuilder2 = schemaBuilder1.getItemsSubschema()
         expect(schemaBuilder2).to.exist
         expect(() =>
