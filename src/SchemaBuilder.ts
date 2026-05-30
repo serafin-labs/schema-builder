@@ -20,7 +20,8 @@ import {
     ObjectSchemaDefinition,
 } from "./TransformationTypes.js"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
-import { throughJsonSchema, cloneJSON, setRequired } from "./utils.js"
+import { cloneJSON, setRequired } from "./utils.js"
+import { walkJsonSchema } from "./walkJsonSchema.js"
 import { createPropertyAccessor } from "./PropertyAccessor.js"
 
 /**
@@ -63,7 +64,7 @@ export class SchemaBuilder<T> {
      * /!\ schemaObject must not contain references. If you have references, use something like json-schema-ref-parser library first.
      */
     constructor(protected schemaObject: JSONSchema, protected validationConfig?: Options) {
-        throughJsonSchema(this.schemaObject, (s) => {
+        walkJsonSchema(this.schemaObject, (s) => {
             if ("$ref" in s) {
                 throw new VError(`Schema Builder Error: $ref can't be used to initialize a SchemaBuilder. Dereferenced the schema first.`)
             }
@@ -385,7 +386,7 @@ export class SchemaBuilder<T> {
      */
     toDeepOptionals(): SchemaBuilder<{ [P in keyof DeepPartial<T>]: DeepPartial<T>[P] }> {
         let schemaObject = cloneJSON(this.schemaObject)
-        throughJsonSchema(schemaObject, (s) => {
+        walkJsonSchema(schemaObject, (s) => {
             delete s.required
             // optional properties can't have default values
             delete s.default
