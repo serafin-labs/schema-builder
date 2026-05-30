@@ -5,6 +5,7 @@
         "incremental": true,
         "sourceMap": true,
         "declaration": true,
+        "declarationMap": true,
         "strict": true,
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true

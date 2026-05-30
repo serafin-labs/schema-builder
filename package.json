@@ -3,8 +3,22 @@
     "version": "0.18.17",
     "description": "A Typescript JSON Schema library that creates a schema and its type at the same time",
     "main": "./lib/cjs/index.js",
-    "exports": "./lib/cjs/index.js",
+    "module": "./lib/esm/index.js",
     "types": "./lib/cjs/index.d.ts",
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./lib/esm/index.d.ts",
+                "default": "./lib/esm/index.js"
+            },
+            "require": {
+                "types": "./lib/cjs/index.d.ts",
+                "default": "./lib/cjs/index.js"
+            }
+        }
+    },
+    "files": ["lib", "src"],
     "contributors": [
         {
             "name": "Sébastien de Saint Florent"
@@ -48,11 +62,11 @@
     "scripts": {
         "test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --recursive ./src/test/**/*.spec.ts",
         "predev": "npm install",
-        "dev": "concurrently -c auto -n '' npm:dev:cjs npm:dev:test",
+        "dev": "concurrently -c auto -n '' npm:dev:cjs npm:dev:esm npm:dev:test",
         "dev:cjs": "tsc --watch --preserveWatchOutput --project tsconfig.cjs.json",
         "dev:esm": "tsc --watch --preserveWatchOutput",
         "dev:test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --reporter dot --watch --watch-files src --extension ts ./src/test/**/*.spec.ts",
-        "build": "npm run build:cjs",
+        "build": "npm run build:esm && npm run build:cjs && npm run fix",
         "build:cjs": "tsc --project tsconfig.cjs.json",
         "build:esm": "tsc",
         "fix": "echo '{ \"type\": \"module\" }' > lib/esm/package.json && echo '{ \"type\": \"commonjs\" }' > lib/cjs/package.json",
