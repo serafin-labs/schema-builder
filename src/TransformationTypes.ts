@@ -23,14 +23,14 @@ export type DeepPartial<T> = {
     [P in keyof T]?: T[P] extends Array<infer U>
         ? Array<DeepPartial<U>>
         : T[P] extends ReadonlyArray<infer U>
-        ? ReadonlyArray<DeepPartial<U>>
-        : T[P] extends object
-        ? { [P2 in keyof DeepPartial<T[P]>]: DeepPartial<T[P]>[P2] }
-        : T[P]
+          ? ReadonlyArray<DeepPartial<U>>
+          : T[P] extends object
+            ? { [P2 in keyof DeepPartial<T[P]>]: DeepPartial<T[P]>[P2] }
+            : T[P]
 }
 
 /**
- * Make all properties of T required and non-nullable.
+ * Make all properties of T required.
  */
 export type Required<T> = {
     [P in keyof T]-?: T[P]
@@ -85,8 +85,8 @@ export type Combine<T, U, K extends keyof any, R extends boolean, N extends bool
         ? T & { [P in K]: U | null }
         : T & { [P in K]: U }
     : N extends true
-    ? T & { [P in K]?: U | null }
-    : T & { [P in K]?: U }
+      ? T & { [P in K]?: U | null }
+      : T & { [P in K]?: U }
 
 /**
  * Make all optional properties of T nullable.
@@ -116,8 +116,8 @@ export type OneOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any
         ? S | ForcedUnwrapProperties<ArrayToOneOfObject<R>>
         : any
     : T extends [SchemaBuilder<infer S>]
-    ? S
-    : any
+      ? S
+      : any
 
 /**
  * Transform an array in the resulting AllOf but wrapping it in an object
@@ -134,8 +134,8 @@ export type AllOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any
         ? S & ForcedUnwrapProperties<ArrayToAllOfObject<R>>
         : any
     : T extends [SchemaBuilder<infer S>]
-    ? S
-    : any
+      ? S
+      : any
 
 /**
  * Type that extract the required properties names from an object
@@ -202,8 +202,8 @@ export type PathReplace<PATH extends unknown[], T, U> = PATH extends [infer PATH
     ? T extends any[]
         ? PathReplace<REST, T[number], U>[]
         : PATH_ELEMENT extends keyof T
-        ? Expand<Omit<T, Extract<keyof T, PATH_ELEMENT>> & { [P in PATH_ELEMENT]: PathReplace<REST, T[P], U> }>
-        : never
+          ? Expand<Omit<T, Extract<keyof T, PATH_ELEMENT>> & { [P in PATH_ELEMENT]: PathReplace<REST, T[P], U> }>
+          : never
     : U
 
 /**

@@ -837,6 +837,23 @@ describe("Schema Builder", function () {
         ])
     })
 
+    it("should render nullable primitives regardless of the `type` array ordering", function () {
+        // Schemas built via the SB.*Schema(..., true) helpers put "null" last,
+        // but schemas declared by hand (or via fromJsonSchema) can put it first.
+        // toTypescript should render either ordering as a nullable primitive.
+        const nullLast = SB.fromJsonSchema({ type: ["string", "null"] } as const)
+        expect(nullLast.toTypescript()[1]).to.equal("SB.stringSchema({}, true)")
+
+        const nullFirst = SB.fromJsonSchema({ type: ["null", "string"] } as const)
+        expect(nullFirst.toTypescript()[1]).to.equal("SB.stringSchema({}, true)")
+
+        const numberNullFirst = SB.fromJsonSchema({ type: ["null", "number"] } as const)
+        expect(numberNullFirst.toTypescript()[1]).to.equal("SB.numberSchema({}, true)")
+
+        const booleanNullFirst = SB.fromJsonSchema({ type: ["null", "boolean"] } as const)
+        expect(booleanNullFirst.toTypescript()[1]).to.equal("SB.booleanSchema({}, true)")
+    })
+
     describe("Error messages testings", function () {
         const advancedSchema = SB.emptySchema({ title: "AdvancedSchema", description: "This is an advanced schema" })
             .addString("asOptNull", {}, false, true)

@@ -123,11 +123,11 @@ export class SchemaBuilder<T> {
             const filteredPropertySchema = Array.isArray(propertySchema) ? propertySchema.filter(<T>(v: T): v is NonNullable<T> => !!v) : propertySchema
             properties[property] = Array.isArray(filteredPropertySchema)
                 ? filteredPropertySchema.length === 1 && filteredPropertySchema[0]
-                    ? cloneJSON(filteredPropertySchema[0].schema)
+                    ? cloneJSON(filteredPropertySchema[0].schemaObject)
                     : {
                           anyOf: filteredPropertySchema.map((builder) => cloneJSON((builder as SchemaBuilder<any>).schemaObject)),
                       }
-                : cloneJSON(filteredPropertySchema.schema)
+                : cloneJSON(filteredPropertySchema.schemaObject)
         }
         let s: JSONSchema = {
             ...cloneJSON(schema),
@@ -217,9 +217,10 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Create a schema that can represent no value
+     * Create a schema that no value can satisfy. Useful when narrowing a union type
+     * to an impossible branch.
      */
-    static noneSchema(schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {}): SchemaBuilder<any> {
+    static neverSchema(schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {}): SchemaBuilder<never> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: [],
@@ -542,11 +543,11 @@ export class SchemaBuilder<T> {
             const filteredPropertySchema = Array.isArray(propertySchema) ? propertySchema.filter(<T>(v: T): v is NonNullable<T> => !!v) : propertySchema
             schemaObject.properties[propertyName as string] = Array.isArray(filteredPropertySchema)
                 ? filteredPropertySchema.length === 1 && filteredPropertySchema[0]
-                    ? cloneJSON(filteredPropertySchema[0].schema)
+                    ? cloneJSON(filteredPropertySchema[0].schemaObject)
                     : {
                           anyOf: filteredPropertySchema.map((builder) => cloneJSON((builder as SchemaBuilder<any>).schemaObject)),
                       }
-                : cloneJSON(filteredPropertySchema.schema)
+                : cloneJSON(filteredPropertySchema.schemaObject)
             if (!Array.isArray(propertySchema) || propertySchema.findIndex((e) => e === undefined) === -1) {
                 schemaObject.required = schemaObject.required || []
                 schemaObject.required.push(propertyName as string)
@@ -1146,7 +1147,7 @@ export class SchemaBuilder<T> {
                 return SchemaBuilder.anySchema()
             }
             if (schemaObject === false) {
-                return SchemaBuilder.noneSchema()
+                return SchemaBuilder.neverSchema()
             }
             return new SchemaBuilder(schemaObject)
         }
@@ -1174,8 +1175,8 @@ export class SchemaBuilder<T> {
                 if (type.length === 1) {
                     type = type[0]
                 }
-                if (Array.isArray(type) && type.length === 2 && type[0] !== "null" && type[1] === "null") {
-                    type = type[0]
+                if (Array.isArray(type) && type.length === 2 && type.includes("null")) {
+                    type = type[0] === "null" ? type[1] : type[0]
                     isNull = true
                 }
             }
