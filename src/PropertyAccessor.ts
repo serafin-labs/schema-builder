@@ -11,17 +11,25 @@ function getWithPath(path: PropertyAccessorPath, data: any) {
 }
 
 /**
+ * Shallow-copy a container while preserving whether it is an array or a plain object.
+ * Falls back to an empty object when `data` is not an array/object (e.g. `undefined`).
+ */
+function copyContainer(data: any): any {
+    return Array.isArray(data) ? [...data] : { ...data }
+}
+
+/**
  * Set a deep property and ensure that any object/array along the path is copied or initialized
  */
 function setWithPath(path: PropertyAccessorPath, data: any, value: any) {
-    data = { ...data }
+    data = copyContainer(data)
     let current: any = data
     for (let i = 0; i < path.length; ++i) {
         const key = path[i]
         if (i === path.length - 1) {
             current[key] = value
         } else {
-            current[key] = current[key] ? (Array.isArray(current[key]) ? [...current[key]] : { ...current[key] }) : typeof path[i + 1] === "string" ? {} : []
+            current[key] = current[key] ? copyContainer(current[key]) : typeof path[i + 1] === "string" ? {} : []
             current = current[key]
         }
     }
@@ -32,7 +40,7 @@ function setWithPath(path: PropertyAccessorPath, data: any, value: any) {
  * Unset a deep property and ensure that any object/array along the path is copied
  */
 function unsetWithPath(path: PropertyAccessorPath, data: any) {
-    data = { ...data }
+    data = copyContainer(data)
     let current: any = data
     for (let i = 0; i < path.length; ++i) {
         const key = path[i]
@@ -42,7 +50,7 @@ function unsetWithPath(path: PropertyAccessorPath, data: any) {
         if (!current[key]) {
             break
         }
-        current[key] = Array.isArray(current[key]) ? [...current[key]] : { ...current[key] }
+        current[key] = copyContainer(current[key])
         current = current[key]
     }
     return data

@@ -41,6 +41,43 @@ describe("Property Accessor", function () {
         expect(pa.set(data, 21)).to.eqls({ s: "test", a: [{ n: 42 }, { n: 21 }] })
     })
 
+    it("preserves the root array type when set is called with an array root", function () {
+        type Items = { n: number }[]
+        const data: Items = [{ n: 1 }, { n: 2 }]
+        const pa = createPropertyAccessor<Items>()[1].n
+        const result = pa.set(data, 99)
+        expect(Array.isArray(result)).to.equal(true)
+        expect(result).to.eqls([{ n: 1 }, { n: 99 }])
+        // Original array is not mutated
+        expect(data).to.eqls([{ n: 1 }, { n: 2 }])
+    })
+
+    it("preserves the root array type when unset is called with an array root", function () {
+        type Items = { n?: number }[]
+        const data: Items = [{ n: 1 }, { n: 2 }]
+        const pa = createPropertyAccessor<Items>()[0].n
+        const result = pa.unset(data)
+        expect(Array.isArray(result)).to.equal(true)
+        expect(result).to.eqls([{}, { n: 2 }])
+        expect(data).to.eqls([{ n: 1 }, { n: 2 }])
+    })
+
+    it("preserves the root array type even for a single-element path on the array itself", function () {
+        type Items = ({ n: number } | undefined)[]
+        const data: Items = [{ n: 1 }, { n: 2 }, { n: 3 }]
+        const pa = createPropertyAccessor<Items>()[2]
+        const setResult = pa.set(data, { n: 99 })
+        expect(Array.isArray(setResult)).to.equal(true)
+        expect(setResult).to.eqls([{ n: 1 }, { n: 2 }, { n: 99 }])
+        const unsetResult = pa.unset(data)
+        expect(Array.isArray(unsetResult)).to.equal(true)
+        // `delete` on an array index leaves a sparse hole; behavior matches Object.assign semantics
+        expect(unsetResult).to.have.length(3)
+        expect(unsetResult[0]).to.eql({ n: 1 })
+        expect(unsetResult[1]).to.eql({ n: 2 })
+        expect(2 in unsetResult).to.equal(false)
+    })
+
     it("should copy intermediate objects but not unchanged properties", function () {
         const schema = SchemaBuilder.emptySchema({})
             .addArray("a", SchemaBuilder.emptySchema().addNumber("n"))

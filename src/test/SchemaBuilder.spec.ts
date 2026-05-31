@@ -865,6 +865,41 @@ describe("Schema Builder", function () {
             )
         })
 
+        it("includes `null` in `type` when `null` appears in the values", function () {
+            const onlyNull = SB.enumSchema([null] as const)
+            expect(onlyNull.schema.type).to.equal("null")
+            expect(onlyNull.schema.enum).to.eql([null])
+
+            const stringOrNull = SB.enumSchema(["a", null] as const)
+            expect(stringOrNull.schema.type).to.eql(["string", "null"])
+            expect(stringOrNull.schema.enum).to.eql(["a", null])
+            expect(() => stringOrNull.validate(null as any)).to.not.throw()
+            expect(() => stringOrNull.validate("a")).to.not.throw()
+            expect(() => stringOrNull.validate("b" as any)).to.throw()
+
+            const numberOrNull = SB.enumSchema([1, 2, null] as const)
+            expect(numberOrNull.schema.type).to.eql(["number", "null"])
+            expect(() => numberOrNull.validate(null as any)).to.not.throw()
+            expect(() => numberOrNull.validate(1)).to.not.throw()
+            expect(() => numberOrNull.validate(3 as any)).to.throw()
+        })
+
+        it("adds `null` to both `type` and `enum` when nullable is true", function () {
+            const nullableString = SB.enumSchema(["a"] as const, {}, true)
+            expect(nullableString.schema.type).to.eql(["string", "null"])
+            expect(nullableString.schema.enum).to.eql(["a", null])
+            expect(() => nullableString.validate(null)).to.not.throw()
+            expect(() => nullableString.validate("a")).to.not.throw()
+        })
+
+        it("does not duplicate `null` in `type`/`enum` when both nullable and a literal null are present", function () {
+            const schema = SB.enumSchema(["a", null] as const, {}, true)
+            const type = schema.schema.type as string[]
+            expect(type.filter((t) => t === "null")).to.have.length(1)
+            const enumValues = schema.schema.enum as unknown[]
+            expect(enumValues.filter((v) => v === null)).to.have.length(1)
+        })
+
         it("should use oneOf with literal values for type narrowing", function () {
             let schema = SB.objectSchema(
                 {},

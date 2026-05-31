@@ -237,25 +237,27 @@ export class SchemaBuilder<T> {
         nullable?: N,
     ): N extends true ? SchemaBuilder<K | null> : SchemaBuilder<K> {
         const valuesArray = Array.isArray(values) ? values : [values]
-        const types = [] as JSONSchemaTypeName[]
-        for (let value of valuesArray) {
-            if (typeof value === "string" && !types.find((type) => type === "string")) {
-                types.push("string")
-            }
-            if (typeof value === "boolean" && !types.find((type) => type === "boolean")) {
-                types.push("boolean")
-            }
-            if (typeof value === "number" && !types.find((type) => type === "number")) {
-                types.push("number")
+        const types = new Set<JSONSchemaTypeName>()
+        for (const value of valuesArray) {
+            if (value === null) {
+                types.add("null")
+            } else if (typeof value === "string") {
+                types.add("string")
+            } else if (typeof value === "boolean") {
+                types.add("boolean")
+            } else if (typeof value === "number") {
+                types.add("number")
             }
         }
         if (nullable) {
-            types.push("null")
+            types.add("null")
         }
+        const typesArray = [...types]
+        const enumIncludesNull = valuesArray.findIndex((v) => v === null) !== -1
         let s: JSONSchema = {
             ...cloneJSON(schema),
-            type: types.length === 1 ? types[0] : types,
-            enum: nullable && valuesArray.findIndex((v) => v === null) === -1 ? [...valuesArray, null] : [...valuesArray],
+            type: typesArray.length === 1 ? typesArray[0] : typesArray,
+            enum: nullable && !enumIncludesNull ? [...valuesArray, null] : [...valuesArray],
         }
         return new SchemaBuilder(s) as any
     }
