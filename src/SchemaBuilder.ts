@@ -37,7 +37,6 @@ export class SchemaBuilder<T> {
     }
     private static globalAJVConfigVersionNumber = 0
     private localValidationFunctionVersionNumber: number = 0
-    private localListValidationFunctionVersionNumber: number = 0
 
     /**
      * Sets the global validation configuration for the schema builder.
@@ -63,7 +62,10 @@ export class SchemaBuilder<T> {
      * Initialize a new SchemaBuilder instance.
      * /!\ schemaObject must not contain references. If you have references, use something like json-schema-ref-parser library first.
      */
-    constructor(protected schemaObject: JSONSchema, protected validationConfig?: Options) {
+    constructor(
+        protected schemaObject: JSONSchema,
+        protected validationConfig?: Options,
+    ) {
         walkJsonSchema(this.schemaObject, (s) => {
             if ("$ref" in s) {
                 throw new VError(`Schema Builder Error: $ref can't be used to initialize a SchemaBuilder. Dereferenced the schema first.`)
@@ -1073,22 +1075,6 @@ export class SchemaBuilder<T> {
     protected validationFunction!: ValidateFunction<T>
 
     /**
-     * Validate the given list of object against the schema. If any object is invalid, an error is thrown with the appropriate details.
-     */
-    validateList(list: T[]) {
-        // ensure validation function is cached
-        this.cacheListValidationFunction()
-        // run validation
-        let valid = this.listValidationFunction(list)
-        // check if an error needs to be thrown
-        if (!valid) {
-            throw validationError(this.ajvList.errorsText(this.listValidationFunction.errors), this.listValidationFunction.errors)
-        }
-    }
-    protected ajvList!: Ajv
-    protected listValidationFunction!: ValidateFunction<T[]>
-
-    /**
      * Change the default Ajv configuration to use the given values.
      * The default validation config is { coerceTypes: false, removeAdditional: false, useDefaults: true }
      */
@@ -1115,24 +1101,6 @@ export class SchemaBuilder<T> {
             this.validationFunction = this.ajv.compile(this.schemaObject)
         }
     }
-    /**
-     * Explicitly cache the validation function for list of objects with the current validation configuration
-     */
-    cacheListValidationFunction() {
-        // prepare validation function
-        if (!this.listValidationFunction || this.localListValidationFunctionVersionNumber !== SchemaBuilder.globalAJVConfigVersionNumber) {
-            this.localListValidationFunctionVersionNumber = SchemaBuilder.globalAJVConfigVersionNumber
-            this.ajvList = new Ajv(this.ajvValidationConfig)
-            addFormats(this.ajvList)
-            this.ajvList.addSchema(this.schemaObject, "schema")
-            this.listValidationFunction = this.ajvList.compile({
-                type: "array",
-                items: { $ref: "schema" },
-                minItems: 1,
-            })
-        }
-    }
-
     /**
      * @experimental This function might not handle properly all cases and its design is subject to change in the future
      *

@@ -546,20 +546,11 @@ describe("Schema Builder", function () {
         }
         expect(queryUserSchema).to.exist
         expect(() => queryUserSchema.validate(q)).to.not.throw()
-        expect(() => queryUserSchema.validateList([q])).to.not.throw()
         expect(
             queryUserSchema.validate.bind(queryUserSchema, {
                 tags: "admin",
                 age: "test",
             } as any),
-        ).to.throw()
-        expect(
-            queryUserSchema.validateList.bind(queryUserSchema, [
-                {
-                    tags: "admin",
-                    age: "test",
-                } as any,
-            ]),
         ).to.throw()
     })
 
