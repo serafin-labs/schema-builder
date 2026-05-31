@@ -954,16 +954,37 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Extract a subschema of the current object schema
+     * Extract a subschema of the current object schema.
+     *
+     * Resolution order for `propertyName`:
+     * 1. If declared in `properties`, the corresponding subschema is returned.
+     * 2. Otherwise, if `additionalProperties` is itself a schema, that schema is
+     *    returned (this is what governs unknown keys in JSON Schema).
+     * 3. Otherwise, if `additionalProperties` is `true`, `SchemaBuilder.anySchema()`
+     *    is returned (any value is allowed).
+     * 4. Otherwise (no additional properties allowed, or the schema uses
+     *    `oneOf`/`anyOf`/`allOf`/`not`), a `SchemaBuilderError` is thrown.
      */
     getSubschema<K extends keyof T>(propertyName: K) {
-        if (!this.isSimpleObjectSchema || !this.schemaObject || typeof this.schemaObject === "boolean" || !this.schemaObject.properties) {
-            throw new VError(
-                `Schema Builder Error: 'getSubschema' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        } else {
-            return new SchemaBuilder<NonNullable<T[K]>>(this.schemaObject.properties[propertyName as string] as JSONSchema)
+        if (!this.isObjectSchema || this.hasSchemasCombinationKeywords || typeof this.schemaObject === "boolean") {
+            throw new VError(`Schema Builder Error: 'getSubschema' can only be used with an object schema that does not use oneOf, anyOf, allOf or not`)
         }
+        const properties = this.schemaObject.properties || {}
+        const propertyKey = propertyName as string
+        if (propertyKey in properties) {
+            return new SchemaBuilder<NonNullable<T[K]>>(properties[propertyKey] as JSONSchema)
+        }
+        const additionalProperties = this.schemaObject.additionalProperties
+        if (additionalProperties && typeof additionalProperties !== "boolean") {
+            return new SchemaBuilder<NonNullable<T[K]>>(additionalProperties as JSONSchema)
+        }
+        if (additionalProperties === true) {
+            return SchemaBuilder.anySchema() as SchemaBuilder<NonNullable<T[K]>>
+        }
+        const known = Object.keys(properties)
+        throw new VError(
+            `Schema Builder Error: 'getSubschema' called with unknown property '${propertyKey}' on ${this.schemaObject.title || "this"} schema. Known properties: ${known.length ? known.join(", ") : "(none)"}.`,
+        )
     }
 
     /**

@@ -741,6 +741,53 @@ describe("Schema Builder", function () {
         ).to.throw()
     })
 
+    it("should throw a clear error when getSubschema is called with an unknown property", function () {
+        const schemaBuilder = SB.emptySchema({ title: "Container" }).addString("s").addNumber("n")
+        expect(() => (schemaBuilder as any).getSubschema("missing")).to.throw(
+            "Schema Builder Error: 'getSubschema' called with unknown property 'missing' on Container schema. Known properties: s, n.",
+        )
+    })
+
+    it("should throw a clear error when getSubschema is called on a schema with combination keywords", function () {
+        const schemaBuilder = SB.oneOf(SB.emptySchema().addString("s"), SB.emptySchema().addNumber("n"))
+        expect(() => (schemaBuilder as any).getSubschema("s")).to.throw(
+            "Schema Builder Error: 'getSubschema' can only be used with an object schema that does not use oneOf, anyOf, allOf or not",
+        )
+    })
+
+    it("should report '(none)' when getSubschema is called on a schema that declares no properties", function () {
+        const schemaBuilder = SB.emptySchema({ title: "Empty" })
+        expect(() => (schemaBuilder as any).getSubschema("missing")).to.throw(
+            "Schema Builder Error: 'getSubschema' called with unknown property 'missing' on Empty schema. Known properties: (none).",
+        )
+    })
+
+    it("should return the declared property's subschema even when additionalProperties is set", function () {
+        const schemaBuilder = SB.emptySchema().addString("declared").addAdditionalProperties(SB.numberSchema())
+        const sub = (schemaBuilder as any).getSubschema("declared")
+        expect(sub.schema.type).to.equal("string")
+    })
+
+    it("should fall back to the additionalProperties schema for undeclared properties", function () {
+        const schemaBuilder = SB.emptySchema().addString("declared").addAdditionalProperties(SB.numberSchema())
+        const sub = (schemaBuilder as any).getSubschema("unknown")
+        expect(sub.schema.type).to.equal("number")
+    })
+
+    it("should return an any schema when additionalProperties is true and the property is undeclared", function () {
+        const schemaBuilder = SB.emptySchema().addString("declared").addAdditionalProperties()
+        const sub = (schemaBuilder as any).getSubschema("unknown")
+        // anySchema is created from an empty `{}` — no `type` keyword.
+        expect(sub.schema.type).to.equal(undefined)
+    })
+
+    it("should still throw for an undeclared property when additionalProperties is false", function () {
+        const schemaBuilder = SB.emptySchema({ title: "Strict" }).addString("declared")
+        expect(() => (schemaBuilder as any).getSubschema("unknown")).to.throw(
+            "Schema Builder Error: 'getSubschema' called with unknown property 'unknown' on Strict schema. Known properties: declared.",
+        )
+    })
+
     it("should get a array subschema", function () {
         let schemaBuilder1 = SB.arraySchema(SB.emptySchema().addString("test"), {}, true)
         let schemaBuilder2 = schemaBuilder1.getItemsSubschema()
