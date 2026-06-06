@@ -20,7 +20,7 @@ import {
     ObjectSchemaDefinition,
 } from "./TransformationTypes.js"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
-import { cloneJSON, setRequired } from "./utils.js"
+import { cloneJSON, cloneRoot, setRequired } from "./utils.js"
 import { walkJsonSchema } from "./walkJsonSchema.js"
 import { createPropertyAccessor } from "./PropertyAccessor.js"
 
@@ -336,13 +336,15 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        const required = _.difference(schemaObject.required ?? [], properties as readonly string[])
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        const required = _.difference(this.schemaObject.required ?? [], properties as readonly string[])
         // clear default values for optional properties
-        for (let optionalProperty of properties) {
-            let property = schemaObject.properties?.[optionalProperty as string]
+        for (const optionalProperty of properties) {
+            const property = schemaObject.properties?.[optionalProperty as string]
             if (property && typeof property !== "boolean") {
-                delete property.default
+                const cloned = { ...property }
+                delete cloned.default
+                schemaObject.properties![optionalProperty as string] = cloned
             }
         }
 
@@ -360,12 +362,15 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'setRequiredProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        for (let property of properties) {
-            schemaObject.required = schemaObject.required || []
-            if (schemaObject.required.indexOf(property as string) === -1) {
-                schemaObject.required.push(property as string)
+        const schemaObject = cloneRoot(this.schemaObject)
+        if (properties.length > 0) {
+            const required = [...(schemaObject.required ?? [])]
+            for (const property of properties) {
+                if (required.indexOf(property as string) === -1) {
+                    required.push(property as string)
+                }
             }
+            schemaObject.required = required
         }
         return new SchemaBuilder(schemaObject, this.validationConfig)
     }
@@ -376,11 +381,16 @@ export class SchemaBuilder<T> {
     toOptionals(): SchemaBuilder<{
         [P in keyof T]?: T[P]
     }> {
-        let schemaObject = cloneJSON(this.schemaObject)
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         delete schemaObject.required
         // remove default values for optional properties
-        for (let property in schemaObject.properties) {
-            delete (schemaObject.properties[property] as JSONSchema).default
+        for (const property in schemaObject.properties) {
+            const inner = schemaObject.properties[property]
+            if (inner && typeof inner !== "boolean") {
+                const cloned = { ...inner }
+                delete cloned.default
+                schemaObject.properties[property] = cloned
+            }
         }
         return new SchemaBuilder(schemaObject, this.validationConfig)
     }
@@ -408,23 +418,25 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'toNullable' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        let required = schemaObject.required || []
-        for (let propertyName in schemaObject.properties) {
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        const required = schemaObject.required || []
+        for (const propertyName in schemaObject.properties) {
             if (required.indexOf(propertyName) === -1) {
-                let propertyValue = schemaObject.properties[propertyName]
+                const propertyValue = schemaObject.properties[propertyName]
                 if (typeof propertyValue !== "boolean" && "type" in propertyValue) {
-                    if (Array.isArray(propertyValue.type) && propertyValue.type.indexOf("null") === -1) {
-                        propertyValue.type = [...propertyValue.type, "null"]
-                    } else if (typeof propertyValue.type === "string" && propertyValue.type !== "null") {
-                        propertyValue.type = [propertyValue.type, "null"]
+                    const cloned: JSONSchema = { ...propertyValue }
+                    if (Array.isArray(cloned.type) && cloned.type.indexOf("null") === -1) {
+                        cloned.type = [...cloned.type, "null"]
+                    } else if (typeof cloned.type === "string" && cloned.type !== "null") {
+                        cloned.type = [cloned.type, "null"]
                     }
-                    if ("enum" in propertyValue && propertyValue.enum?.indexOf(null) === -1) {
-                        propertyValue.enum = [...propertyValue.enum, null]
+                    if ("enum" in cloned && cloned.enum?.indexOf(null) === -1) {
+                        cloned.enum = [...cloned.enum, null]
                     }
+                    schemaObject.properties[propertyName] = cloned
                 } else {
                     schemaObject.properties[propertyName] = {
-                        anyOf: [schemaObject.properties[propertyName], { type: "null" }],
+                        anyOf: [propertyValue, { type: "null" }],
                     }
                 }
             }
@@ -443,15 +455,13 @@ export class SchemaBuilder<T> {
         if (!this.isObjectSchema) {
             throw new VError(`Schema Builder Error: you can only add properties to an object schema`)
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
-        if (propertyName in schemaObject.properties) {
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        if (propertyName in schemaObject.properties!) {
             throw new VError(`Schema Builder Error: '${propertyName as string}' already exists in ${schemaObject.title || "this"} schema`)
         }
-        schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
+        schemaObject.properties![propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
         if (isRequired === true || isRequired === undefined) {
-            schemaObject.required = schemaObject.required || []
-            schemaObject.required.push(propertyName as string)
+            schemaObject.required = [...(schemaObject.required ?? []), propertyName as string]
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -467,16 +477,14 @@ export class SchemaBuilder<T> {
         if (!this.isObjectSchema) {
             throw new VError(`Schema Builder Error: you can only replace properties of an object schema`)
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         if (schemaObject.required) {
             schemaObject.required = schemaObject.required.filter((p: string) => p !== propertyName)
         }
         const schemaBuilder = typeof schemaBuilderResolver === "function" ? schemaBuilderResolver(this.getSubschema(propertyName)) : schemaBuilderResolver
-        schemaObject.properties[propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
+        schemaObject.properties![propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
         if (isRequired === true || isRequired === undefined) {
-            schemaObject.required = schemaObject.required || []
-            schemaObject.required.push(propertyName as string)
+            schemaObject.required = [...(schemaObject.required ?? []), propertyName as string]
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -495,13 +503,13 @@ export class SchemaBuilder<T> {
     /**
      * Add additional properties schema.
      * /!\ Many type operations can't work properly with index signatures. Try to use additionalProperties at the last step of your SchemaBuilder definition.
-     * /!\ In typescript index signature MUST be compatible with other properties. However its supported in JSON schema, you can use it but you have to force the index singature to any.
+     * /!\ In typescript index signature MUST be compatible with other properties. However its supported in JSON schema, you can use it but you have to force the index signature to any.
      */
     addAdditionalProperties<U = any>(schemaBuilder?: SchemaBuilder<U>): SchemaBuilder<T & { [P: string]: U }> {
         if (this.schemaObject.additionalProperties) {
             throw new VError(`Schema Builder Error: additionalProperties is already set in ${this.schemaObject.title || "this"} schema.`)
         }
-        let schemaObject = cloneJSON(this.schemaObject)
+        const schemaObject = cloneRoot(this.schemaObject)
         schemaObject.additionalProperties = schemaBuilder ? cloneJSON(schemaBuilder.schemaObject) : true
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -515,11 +523,8 @@ export class SchemaBuilder<T> {
         schemaBuilder: SchemaBuilder<U> | true = true,
     ): SchemaBuilder<{ [Key in keyof T | `${PPK}${string}${SPK}`]: Key extends keyof T ? T[Key] : U }> {
         const newPatternKey = `^${prefixPattern}.*${suffixPattern}$`
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.patternProperties = {
-            ...schemaObject.patternProperties,
-            [newPatternKey]: schemaBuilder === true ? true : cloneJSON(schemaBuilder.schemaObject),
-        }
+        const schemaObject = cloneRoot(this.schemaObject, { patternProperties: {} })
+        schemaObject.patternProperties![newPatternKey] = schemaBuilder === true ? true : cloneJSON(schemaBuilder.schemaObject)
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
@@ -532,16 +537,16 @@ export class SchemaBuilder<T> {
         if (!this.isObjectSchema) {
             throw new VError(`Schema Builder Error: you can only add properties to an object schema`)
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
-        const propertiesIntersection = _.intersection(Object.keys(schemaObject.properties), Object.keys(propertiesDefinition))
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        const propertiesIntersection = _.intersection(Object.keys(schemaObject.properties!), Object.keys(propertiesDefinition))
         if (propertiesIntersection.length) {
             throw new VError(`Schema Builder Error: '${propertiesIntersection.join(", ")}' already exists in ${schemaObject.title || "this"} schema`)
         }
+        const newRequired: string[] = []
         for (const propertyName in propertiesDefinition) {
             const propertySchema = propertiesDefinition[propertyName]
             const filteredPropertySchema = Array.isArray(propertySchema) ? propertySchema.filter(<T>(v: T): v is NonNullable<T> => !!v) : propertySchema
-            schemaObject.properties[propertyName as string] = Array.isArray(filteredPropertySchema)
+            schemaObject.properties![propertyName as string] = Array.isArray(filteredPropertySchema)
                 ? filteredPropertySchema.length === 1 && filteredPropertySchema[0]
                     ? cloneJSON(filteredPropertySchema[0].schemaObject)
                     : {
@@ -549,9 +554,11 @@ export class SchemaBuilder<T> {
                       }
                 : cloneJSON(filteredPropertySchema.schemaObject)
             if (!Array.isArray(propertySchema) || propertySchema.findIndex((e) => e === undefined) === -1) {
-                schemaObject.required = schemaObject.required || []
-                schemaObject.required.push(propertyName as string)
+                newRequired.push(propertyName as string)
             }
+        }
+        if (newRequired.length > 0) {
+            schemaObject.required = [...(schemaObject.required ?? []), ...newRequired]
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -642,15 +649,16 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'renameProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
-        if (propertyName in schemaObject.properties) {
-            schemaObject.properties[newPropertyName as string] = schemaObject.properties[propertyName as string]
-            delete schemaObject.properties[propertyName as string]
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        if (propertyName in schemaObject.properties!) {
+            schemaObject.properties![newPropertyName as string] = schemaObject.properties![propertyName as string]
+            delete schemaObject.properties![propertyName as string]
             // rename the property in the required array if needed
             if (schemaObject.required && schemaObject.required.indexOf(propertyName as string) !== -1) {
-                schemaObject.required.splice(schemaObject.required.indexOf(propertyName as string), 1)
-                schemaObject.required.push(newPropertyName as string)
+                const newRequired = [...schemaObject.required]
+                newRequired.splice(newRequired.indexOf(propertyName as string), 1)
+                newRequired.push(newPropertyName as string)
+                schemaObject.required = newRequired
             }
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
@@ -665,18 +673,20 @@ export class SchemaBuilder<T> {
         if (!this.isObjectSchema || this.hasSchemasCombinationKeywords) {
             throw new VError(`Schema Builder Error: 'pickProperties' can only be used with a simple object schema (no oneOf, anyOf, allOf or not)`)
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
-        let propertiesMap: any = {}
-        for (let property of properties) {
-            propertiesMap[property] = schemaObject.properties[property as string]
+        const schemaObject = cloneRoot(this.schemaObject)
+        const sourceProperties = this.schemaObject.properties || {}
+        const propertiesMap: any = {}
+        for (const property of properties) {
+            propertiesMap[property] = sourceProperties[property as string]
         }
         schemaObject.properties = propertiesMap
-        if (schemaObject.required) {
-            schemaObject.required = schemaObject.required.filter((r: string) => (properties as readonly string[]).indexOf(r) !== -1)
-        }
-        if (Array.isArray(schemaObject.required) && schemaObject.required.length === 0) {
-            delete schemaObject.required
+        if (this.schemaObject.required) {
+            const filtered = this.schemaObject.required.filter((r: string) => (properties as readonly string[]).indexOf(r) !== -1)
+            if (filtered.length > 0) {
+                schemaObject.required = filtered
+            } else {
+                delete schemaObject.required
+            }
         }
         schemaObject.additionalProperties = false
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
@@ -697,21 +707,18 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'pickPropertiesIncludingAdditonalProperties' can only be used with a simple object schema with additionalProperties (no oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        let additionalProps = schemaObject.additionalProperties
-        schemaObject.properties = schemaObject.properties || {}
-        let propertiesMap: {
-            [key: string]: boolean | JSONSchema
-        } = {}
-        for (let property of properties) {
-            propertiesMap[property as string] = schemaObject.properties[property as string]
+        const schemaObject = cloneRoot(this.schemaObject)
+        const additionalProps = this.schemaObject.additionalProperties
+        const sourceProperties = this.schemaObject.properties || {}
+        const propertiesMap: { [key: string]: boolean | JSONSchema } = {}
+        for (const property of properties) {
+            propertiesMap[property as string] = sourceProperties[property as string]
         }
         schemaObject.properties = propertiesMap
-        if (schemaObject.required) {
-            schemaObject.required = schemaObject.required.filter((r: string) => (properties as readonly string[]).indexOf(r) !== -1)
-        }
-        if (Array.isArray(schemaObject.required) && schemaObject.required.length === 0) {
-            delete schemaObject.required
+        let requiredArr: string[] | undefined
+        if (this.schemaObject.required) {
+            const filtered = this.schemaObject.required.filter((r: string) => (properties as readonly string[]).indexOf(r) !== -1)
+            requiredArr = filtered.length > 0 ? filtered : undefined
         }
         if (!additionalProperties) {
             schemaObject.additionalProperties = additionalProps ? additionalProps : true
@@ -719,13 +726,18 @@ export class SchemaBuilder<T> {
             schemaObject.additionalProperties = false
         } else {
             schemaObject.additionalProperties = false
-            schemaObject.required = schemaObject.required || []
             if (additionalProps) {
-                for (let additionalProperty of additionalProperties) {
+                requiredArr = requiredArr ?? []
+                for (const additionalProperty of additionalProperties) {
                     schemaObject.properties[additionalProperty] = typeof additionalProps === "boolean" ? {} : cloneJSON(additionalProps)
-                    schemaObject.required.push(additionalProperty)
+                    requiredArr.push(additionalProperty)
                 }
             }
+        }
+        if (requiredArr) {
+            schemaObject.required = requiredArr
+        } else {
+            delete schemaObject.required
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -758,12 +770,11 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'transformProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
-        propertyNames = propertyNames || (Object.keys(schemaObject.properties) as K[])
-        for (let property of propertyNames) {
-            let propertySchema = schemaObject.properties[property as string]
-            schemaObject.properties[property as string] = {
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
+        for (const property of propertyNames) {
+            const propertySchema = schemaObject.properties![property as string]
+            schemaObject.properties![property as string] = {
                 oneOf: [propertySchema, cloneJSON(schemaBuilder.schemaObject)],
             }
         }
@@ -786,14 +797,13 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'transformPropertiesToArray' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
-        propertyNames = propertyNames || (Object.keys(schemaObject.properties) as K[])
-        for (let property of propertyNames) {
-            let propertySchema = schemaObject.properties[property as string]
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
+        for (const property of propertyNames) {
+            const propertySchema = schemaObject.properties![property as string]
             // Transform the property if it's not an array
             if ((propertySchema as JSONSchema).type !== "array") {
-                schemaObject.properties[property as string] = {
+                schemaObject.properties![property as string] = {
                     oneOf: [propertySchema, { type: "array", items: cloneJSON(propertySchema), ...schema }],
                 }
             }
@@ -815,14 +825,13 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'unwrapArrayProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject = cloneJSON(this.schemaObject)
-        schemaObject.properties = schemaObject.properties || {}
-        propertyNames = propertyNames || (Object.keys(schemaObject.properties) as K[])
-        for (let property of propertyNames) {
-            let propertySchema = schemaObject.properties[property as string]
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
+        for (const property of propertyNames) {
+            const propertySchema = schemaObject.properties![property as string]
             // Transform the property if it's an array
             if ((propertySchema as JSONSchema).type === "array") {
-                let items = (propertySchema as JSONSchema).items
+                const items = (propertySchema as JSONSchema).items
                 let itemsSchema: JSONSchema
                 if (Array.isArray(items)) {
                     if (items.length === 1) {
@@ -833,7 +842,7 @@ export class SchemaBuilder<T> {
                 } else {
                     itemsSchema = items as JSONSchema
                 }
-                schemaObject.properties[property as string] = {
+                schemaObject.properties![property as string] = {
                     oneOf: [cloneJSON(itemsSchema), propertySchema],
                 }
             }
@@ -851,31 +860,27 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'intersectProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject1 = cloneJSON(this.schemaObject)
-        let schemaObject2 = cloneJSON(schema.schemaObject)
+        const schemaObject1 = cloneRoot(this.schemaObject, { properties: {}, required: [] })
+        const schemaObject2 = cloneJSON(schema.schemaObject)
         if (schemaObject2.properties) {
-            schemaObject1.properties = schemaObject1.properties || {}
-            for (let propertyKey in schemaObject2.properties) {
-                if (!(propertyKey in schemaObject1.properties)) {
-                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey]
+            for (const propertyKey in schemaObject2.properties) {
+                if (!(propertyKey in schemaObject1.properties!)) {
+                    schemaObject1.properties![propertyKey] = schemaObject2.properties[propertyKey]
                     if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
-                        schemaObject1.required = schemaObject1.required || []
-                        schemaObject1.required.push(propertyKey)
+                        schemaObject1.required!.push(propertyKey)
                     }
                 } else {
-                    schemaObject1.properties[propertyKey] = {
-                        allOf: [schemaObject1.properties[propertyKey], schemaObject2.properties[propertyKey]],
+                    schemaObject1.properties![propertyKey] = {
+                        allOf: [schemaObject1.properties![propertyKey], schemaObject2.properties[propertyKey]],
                     }
-                    if (
-                        schemaObject2.required &&
-                        schemaObject2.required.indexOf(propertyKey) !== -1 &&
-                        (!schemaObject1.required || schemaObject1.required.indexOf(propertyKey) === -1)
-                    ) {
-                        schemaObject1.required = schemaObject1.required || []
-                        schemaObject1.required.push(propertyKey)
+                    if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1 && schemaObject1.required!.indexOf(propertyKey) === -1) {
+                        schemaObject1.required!.push(propertyKey)
                     }
                 }
             }
+        }
+        if (schemaObject1.required!.length === 0) {
+            delete schemaObject1.required
         }
         return new SchemaBuilder(schemaObject1, this.validationConfig) as any
     }
@@ -890,30 +895,30 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject1 = cloneJSON(this.schemaObject)
-        let schemaObject2 = cloneJSON(schema.schemaObject)
+        const schemaObject1 = cloneRoot(this.schemaObject, { properties: {}, required: [] })
+        const schemaObject2 = cloneJSON(schema.schemaObject)
         if (schemaObject2.properties) {
-            schemaObject1.properties = schemaObject1.properties || {}
-            for (let propertyKey in schemaObject2.properties) {
-                if (!(propertyKey in schemaObject1.properties)) {
-                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey]
+            for (const propertyKey in schemaObject2.properties) {
+                if (!(propertyKey in schemaObject1.properties!)) {
+                    schemaObject1.properties![propertyKey] = schemaObject2.properties[propertyKey]
                     if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
-                        schemaObject1.required = schemaObject1.required || []
-                        schemaObject1.required.push(propertyKey)
+                        schemaObject1.required!.push(propertyKey)
                     }
                 } else {
-                    schemaObject1.properties[propertyKey] = {
-                        anyOf: [schemaObject1.properties[propertyKey], schemaObject2.properties[propertyKey]],
+                    schemaObject1.properties![propertyKey] = {
+                        anyOf: [schemaObject1.properties![propertyKey], schemaObject2.properties[propertyKey]],
                     }
                     if (
-                        schemaObject1.required &&
-                        schemaObject1.required.indexOf(propertyKey) !== -1 &&
+                        schemaObject1.required!.indexOf(propertyKey) !== -1 &&
                         (!schemaObject2.required || schemaObject2.required.indexOf(propertyKey) === -1)
                     ) {
-                        schemaObject1.required = schemaObject1.required.filter((p: string) => p !== propertyKey)
+                        schemaObject1.required = schemaObject1.required!.filter((p: string) => p !== propertyKey)
                     }
                 }
             }
+        }
+        if (schemaObject1.required!.length === 0) {
+            delete schemaObject1.required
         }
         return new SchemaBuilder(schemaObject1, this.validationConfig) as any
     }
@@ -928,28 +933,28 @@ export class SchemaBuilder<T> {
                 `Schema Builder Error: 'overwriteProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
             )
         }
-        let schemaObject1 = cloneJSON(this.schemaObject)
-        let schemaObject2 = cloneJSON(schema.schemaObject)
+        const schemaObject1 = cloneRoot(this.schemaObject, { properties: {}, required: [] })
+        const schemaObject2 = cloneJSON(schema.schemaObject)
         if (schemaObject2.properties) {
-            schemaObject1.properties = schemaObject1.properties || {}
-            for (let propertyKey in schemaObject2.properties) {
-                if (!(propertyKey in schemaObject1.properties)) {
-                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey]
+            for (const propertyKey in schemaObject2.properties) {
+                if (!(propertyKey in schemaObject1.properties!)) {
+                    schemaObject1.properties![propertyKey] = schemaObject2.properties[propertyKey]
                     if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
-                        schemaObject1.required = schemaObject1.required || []
-                        schemaObject1.required.push(propertyKey)
+                        schemaObject1.required!.push(propertyKey)
                     }
                 } else {
-                    schemaObject1.properties[propertyKey] = schemaObject2.properties[propertyKey]
-                    if (schemaObject1.required && schemaObject1.required.indexOf(propertyKey) !== -1) {
-                        schemaObject1.required = schemaObject1.required.filter((r: string) => r !== propertyKey)
+                    schemaObject1.properties![propertyKey] = schemaObject2.properties[propertyKey]
+                    if (schemaObject1.required!.indexOf(propertyKey) !== -1) {
+                        schemaObject1.required = schemaObject1.required!.filter((r: string) => r !== propertyKey)
                     }
                     if (schemaObject2.required && schemaObject2.required.indexOf(propertyKey) !== -1) {
-                        schemaObject1.required = schemaObject1.required || []
-                        schemaObject1.required.push(propertyKey)
+                        schemaObject1.required!.push(propertyKey)
                     }
                 }
             }
+        }
+        if (schemaObject1.required!.length === 0) {
+            delete schemaObject1.required
         }
         return new SchemaBuilder(schemaObject1, this.validationConfig) as any
     }
@@ -1075,10 +1080,7 @@ export class SchemaBuilder<T> {
      * @property schema
      */
     setSchemaAttributes(schema: Pick<JSONSchema, JSONSchemaGeneralProperties>): SchemaBuilder<{ [P in keyof T]: T[P] }> {
-        let schemaObject = {
-            ...cloneJSON(this.schemaObject),
-            ...schema,
-        }
+        const schemaObject = { ...this.schemaObject, ...schema }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
 
@@ -1103,7 +1105,9 @@ export class SchemaBuilder<T> {
      * The default validation config is { coerceTypes: false, removeAdditional: false, useDefaults: true }
      */
     configureValidation(validationConfig: Options) {
-        return new SchemaBuilder<T>(cloneJSON(this.schemaObject), validationConfig)
+        // The schemaObject reference is shared; both builders treat it as immutable
+        // and every mutator returns a fresh copy, so no clone is needed here.
+        return new SchemaBuilder<T>(this.schemaObject, validationConfig)
     }
 
     get ajvValidationConfig() {
