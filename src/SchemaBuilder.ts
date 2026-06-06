@@ -461,7 +461,9 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Replace an existing property of this schema
+     * Replace an existing property of this schema.
+     * Throws if `propertyName` is not declared on the current schema — use
+     * `addOrReplaceProperty` if you need either-or semantics.
      */
     replaceProperty<U, K extends keyof T, REQUIRED extends boolean = true>(
         propertyName: K,
@@ -471,14 +473,20 @@ export class SchemaBuilder<T> {
         if (!this.isObjectSchema) {
             throw new VError(`Schema Builder Error: you can only replace properties of an object schema`)
         }
+        const propertyKey = propertyName as string
+        if (!this.schemaObject.properties || !(propertyKey in this.schemaObject.properties)) {
+            throw new VError(
+                `Schema Builder Error: 'replaceProperty' called with unknown property '${propertyKey}' on ${this.schemaObject.title || "this"} schema`,
+            )
+        }
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         if (schemaObject.required) {
             schemaObject.required = schemaObject.required.filter((p: string) => p !== propertyName)
         }
         const schemaBuilder = typeof schemaBuilderResolver === "function" ? schemaBuilderResolver(this.getSubschema(propertyName)) : schemaBuilderResolver
-        schemaObject.properties![propertyName as string] = cloneJSON(schemaBuilder.schemaObject)
+        schemaObject.properties![propertyKey] = cloneJSON(schemaBuilder.schemaObject)
         if (isRequired === true || isRequired === undefined) {
-            schemaObject.required = [...(schemaObject.required ?? []), propertyName as string]
+            schemaObject.required = [...(schemaObject.required ?? []), propertyKey]
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -491,7 +499,10 @@ export class SchemaBuilder<T> {
         schemaBuilder: SchemaBuilder<U>,
         isRequired?: REQUIRED,
     ): SchemaBuilder<{ [P in keyof Combine<Omit<T, K>, U, K, REQUIRED, false>]: Combine<Omit<T, K>, U, K, REQUIRED, false>[P] }> {
-        return this.replaceProperty(propertyName as any, schemaBuilder, isRequired) as any
+        const exists = !!this.schemaObject.properties && (propertyName as string) in this.schemaObject.properties
+        return exists
+            ? (this.replaceProperty(propertyName as any, schemaBuilder, isRequired) as any)
+            : (this.addProperty(propertyName, schemaBuilder, isRequired) as any)
     }
 
     /**
@@ -626,27 +637,26 @@ export class SchemaBuilder<T> {
         newPropertyName: K2,
     ): SchemaBuilder<{ [P in keyof Rename<T, K, K2>]: Rename<T, K, K2>[P] }> {
         this.assertSimpleObjectSchema("renameProperty")
-        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         const source = propertyName as string
         const target = newPropertyName as string
+        if (source === target) {
+            throw new VError(
+                `Schema Builder Error: 'renameProperty' source and target are both '${source}' on ${this.schemaObject.title || "this"} schema`,
+            )
+        }
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         if (!(source in schemaObject.properties!)) {
             throw new VError(`Schema Builder Error: 'renameProperty' called with unknown property '${source}' on ${schemaObject.title || "this"} schema`)
         }
-        if (source !== target && target in schemaObject.properties!) {
+        if (target in schemaObject.properties!) {
             throw new VError(
                 `Schema Builder Error: 'renameProperty' target '${target}' already exists in ${schemaObject.title || "this"} schema`,
             )
         }
         schemaObject.properties![target] = schemaObject.properties![source]
-        if (source !== target) {
-            delete schemaObject.properties![source]
-        }
+        delete schemaObject.properties![source]
         if (schemaObject.required && schemaObject.required.indexOf(source) !== -1) {
-            const newRequired = schemaObject.required.filter((p: string) => p !== source)
-            if (newRequired.indexOf(target) === -1) {
-                newRequired.push(target)
-            }
-            schemaObject.required = newRequired
+            schemaObject.required = schemaObject.required.filter((p: string) => p !== source).concat(target)
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }

@@ -161,4 +161,53 @@ describe("Property Accessor", function () {
         expect(pa.path).eqls(["o", "s"])
         expect(pa.schema.schema.description).to.equals("A string")
     })
+
+    it("throws when narrow is called on a schema-backed accessor without a transform", function () {
+        const schema = SchemaBuilder.emptySchema({}).addString("s")
+        const pa = createPropertyAccessor(schema).s
+        expect(() => (pa as any).narrow()).to.throw("'schemaTransform' is mandatory when narrowing a property accessor with a schema")
+    })
+
+    it("allows narrow with no schema and no transform (returns a schema-less accessor)", function () {
+        type M = { o: { s: string } | { n: number } }
+        const data: M = { o: { s: "hi" } }
+        const pa = createPropertyAccessor<M>().o.narrow<{ s: string }>()
+        expect(pa.path).eqls(["o"])
+        expect(pa.schema).to.equal(undefined)
+        expect(pa.get(data)).to.eql({ s: "hi" })
+    })
+
+    it("returns undefined when getting a path through a missing intermediate", function () {
+        const pa = createPropertyAccessor<{ o?: { n: number } }>().o.n
+        expect(pa.get({})).to.equal(undefined)
+        expect(pa.get({ o: undefined } as any)).to.equal(undefined)
+    })
+
+    it("unset is a no-op when an intermediate object is missing", function () {
+        const pa = createPropertyAccessor<{ o?: { n?: number } }>().o.n
+        const result = pa.unset({})
+        expect(result).to.eql({})
+    })
+
+    it("returns the input untouched when set is called with an empty-path accessor", function () {
+        // An empty path can only be obtained at the very root of the builder.
+        const pa = createPropertyAccessor<{ a: number }>()
+        const data = { a: 1 }
+        const result = pa.set(data, { a: 2 })
+        // mutatePath with an empty path returns a shallow copy of the data
+        expect(result).to.eql({ a: 1 })
+        expect(result).to.not.equal(data)
+    })
+
+    it("exposes reserved property names directly from the accessor instead of recursing", function () {
+        const pa = createPropertyAccessor<{ x: number }>()
+        // Accessing `path`, `get`, `set`, `unset`, `schema`, `transform`, `narrow`
+        // must return the accessor's own values, not build a deeper accessor.
+        expect(pa.path).to.eql([])
+        expect(typeof pa.get).to.equal("function")
+        expect(typeof pa.set).to.equal("function")
+        expect(typeof pa.unset).to.equal("function")
+        expect(typeof pa.transform).to.equal("function")
+        expect(typeof pa.narrow).to.equal("function")
+    })
 })
