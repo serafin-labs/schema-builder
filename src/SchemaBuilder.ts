@@ -113,22 +113,7 @@ export class SchemaBuilder<T> {
         propertiesDefinition: P,
         nullable?: N,
     ): N extends true ? SchemaBuilder<ObjectSchemaDefinition<P> | null> : SchemaBuilder<ObjectSchemaDefinition<P>> {
-        const required = [] as string[]
-        const properties = {} as NonNullable<JSONSchema["properties"]>
-        for (const property in propertiesDefinition) {
-            const propertySchema = propertiesDefinition[property]
-            if (!Array.isArray(propertySchema) || propertySchema.findIndex((e) => e === undefined) === -1) {
-                required.push(property)
-            }
-            const filteredPropertySchema = Array.isArray(propertySchema) ? propertySchema.filter(<T>(v: T): v is NonNullable<T> => !!v) : propertySchema
-            properties[property] = Array.isArray(filteredPropertySchema)
-                ? filteredPropertySchema.length === 1 && filteredPropertySchema[0]
-                    ? cloneJSON(filteredPropertySchema[0].schemaObject)
-                    : {
-                          anyOf: filteredPropertySchema.map((builder) => cloneJSON((builder as SchemaBuilder<any>).schemaObject)),
-                      }
-                : cloneJSON(filteredPropertySchema.schemaObject)
-        }
+        const { properties, required } = SchemaBuilder.buildPropertiesAndRequired(propertiesDefinition)
         let s: JSONSchema = {
             ...cloneJSON(schema),
             type: nullable ? ["object", "null"] : "object",
@@ -140,17 +125,50 @@ export class SchemaBuilder<T> {
     }
 
     /**
+     * Internal helper shared by `objectSchema` and `addProperties` to translate a
+     * property-definition map into a `{ properties, required }` pair.
+     * A property is marked required unless its definition is an array that
+     * contains `undefined` (e.g. `[SB.stringSchema(), undefined]`).
+     */
+    private static buildPropertiesAndRequired<P extends { [k: string]: SchemaBuilder<any> | (SchemaBuilder<any> | undefined)[] }>(
+        propertiesDefinition: P,
+    ): { properties: NonNullable<JSONSchema["properties"]>; required: string[] } {
+        const properties: NonNullable<JSONSchema["properties"]> = {}
+        const required: string[] = []
+        for (const propertyName in propertiesDefinition) {
+            const definition = propertiesDefinition[propertyName]
+            const isRequired = !Array.isArray(definition) || definition.findIndex((e) => e === undefined) === -1
+            if (isRequired) {
+                required.push(propertyName)
+            }
+            const filtered = Array.isArray(definition) ? definition.filter(<V>(v: V): v is NonNullable<V> => !!v) : definition
+            properties[propertyName] = Array.isArray(filtered)
+                ? filtered.length === 1 && filtered[0]
+                    ? cloneJSON(filtered[0].schemaObject)
+                    : { anyOf: filtered.map((builder) => cloneJSON((builder as SchemaBuilder<any>).schemaObject)) }
+                : cloneJSON(filtered.schemaObject)
+        }
+        return { properties, required }
+    }
+
+    /**
+     * Internal helper for building a primitive-typed schema with an optional `null` union.
+     */
+    private static primitiveSchema(primitiveType: JSONSchemaTypeName, schema: object, nullable: boolean | undefined): SchemaBuilder<any> {
+        return new SchemaBuilder({
+            ...cloneJSON(schema),
+            type: nullable ? [primitiveType, "null"] : primitiveType,
+        })
+    }
+
+    /**
      * Create a string schema
      */
     static stringSchema<N extends boolean = false>(
         schema: Pick<JSONSchema, JSONSchemaStringProperties> = {},
         nullable?: N,
     ): N extends true ? SchemaBuilder<string | null> : SchemaBuilder<string> {
-        let s: JSONSchema = {
-            ...cloneJSON(schema),
-            type: nullable ? ["string", "null"] : "string",
-        }
-        return new SchemaBuilder(s) as any
+        return SchemaBuilder.primitiveSchema("string", schema, nullable) as any
     }
 
     /**
@@ -160,11 +178,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {},
         nullable?: N,
     ): N extends true ? SchemaBuilder<number | null> : SchemaBuilder<number> {
-        let s: JSONSchema = {
-            ...cloneJSON(schema),
-            type: nullable ? ["number", "null"] : "number",
-        }
-        return new SchemaBuilder(s) as any
+        return SchemaBuilder.primitiveSchema("number", schema, nullable) as any
     }
 
     /**
@@ -174,11 +188,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaNumberProperties> = {},
         nullable?: N,
     ): N extends true ? SchemaBuilder<number | null> : SchemaBuilder<number> {
-        let s: JSONSchema = {
-            ...cloneJSON(schema),
-            type: nullable ? ["integer", "null"] : "integer",
-        }
-        return new SchemaBuilder(s) as any
+        return SchemaBuilder.primitiveSchema("integer", schema, nullable) as any
     }
 
     /**
@@ -188,11 +198,7 @@ export class SchemaBuilder<T> {
         schema: Pick<JSONSchema, JSONSchemaBooleanProperties> = {},
         nullable?: N,
     ): N extends true ? SchemaBuilder<boolean | null> : SchemaBuilder<boolean> {
-        let s: JSONSchema = {
-            ...cloneJSON(schema),
-            type: nullable ? ["boolean", "null"] : "boolean",
-        }
-        return new SchemaBuilder(s) as any
+        return SchemaBuilder.primitiveSchema("boolean", schema, nullable) as any
     }
 
     /**
@@ -234,7 +240,7 @@ export class SchemaBuilder<T> {
      */
     static enumSchema<K extends string | number | boolean | null, N extends boolean = false>(
         values: K | readonly K[],
-        schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
+        schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {},
         nullable?: N,
     ): N extends true ? SchemaBuilder<K | null> : SchemaBuilder<K> {
         const valuesArray = Array.isArray(values) ? values : [values]
@@ -266,7 +272,7 @@ export class SchemaBuilder<T> {
     /**
      * Create a constant schema. Useful for narrowing types.
      */
-    static constSchema<K extends string | number | boolean | null>(value: K, schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {}): SchemaBuilder<K> {
+    static constSchema<K extends string | number | boolean | null>(value: K, schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {}): SchemaBuilder<K> {
         let s: JSONSchema = {
             ...cloneJSON(schema),
             const: value,
@@ -331,11 +337,7 @@ export class SchemaBuilder<T> {
      * Make given properties optionals
      */
     setOptionalProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<{ [P in keyof PartialProperties<T, K>]: PartialProperties<T, K>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'setOptionalProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("setOptionalProperties")
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         const required = _.difference(this.schemaObject.required ?? [], properties as readonly string[])
         // clear default values for optional properties
@@ -357,11 +359,7 @@ export class SchemaBuilder<T> {
      * Make given properties required
      */
     setRequiredProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<{ [P in keyof RequiredProperties<T, K>]: RequiredProperties<T, K>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'setRequiredProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("setRequiredProperties")
         const schemaObject = cloneRoot(this.schemaObject)
         if (properties.length > 0) {
             const required = [...(schemaObject.required ?? [])]
@@ -413,11 +411,7 @@ export class SchemaBuilder<T> {
      * Make all optional properties of this schema nullable
      */
     toNullable(): SchemaBuilder<{ [P in keyof Nullable<T>]: Nullable<T>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'toNullable' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("toNullable")
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         const required = schemaObject.required || []
         for (const propertyName in schemaObject.properties) {
@@ -542,21 +536,8 @@ export class SchemaBuilder<T> {
         if (propertiesIntersection.length) {
             throw new VError(`Schema Builder Error: '${propertiesIntersection.join(", ")}' already exists in ${schemaObject.title || "this"} schema`)
         }
-        const newRequired: string[] = []
-        for (const propertyName in propertiesDefinition) {
-            const propertySchema = propertiesDefinition[propertyName]
-            const filteredPropertySchema = Array.isArray(propertySchema) ? propertySchema.filter(<T>(v: T): v is NonNullable<T> => !!v) : propertySchema
-            schemaObject.properties![propertyName as string] = Array.isArray(filteredPropertySchema)
-                ? filteredPropertySchema.length === 1 && filteredPropertySchema[0]
-                    ? cloneJSON(filteredPropertySchema[0].schemaObject)
-                    : {
-                          anyOf: filteredPropertySchema.map((builder) => cloneJSON((builder as SchemaBuilder<any>).schemaObject)),
-                      }
-                : cloneJSON(filteredPropertySchema.schemaObject)
-            if (!Array.isArray(propertySchema) || propertySchema.findIndex((e) => e === undefined) === -1) {
-                newRequired.push(propertyName as string)
-            }
-        }
+        const { properties: newProperties, required: newRequired } = SchemaBuilder.buildPropertiesAndRequired(propertiesDefinition)
+        Object.assign(schemaObject.properties!, newProperties)
         if (newRequired.length > 0) {
             schemaObject.required = [...(schemaObject.required ?? []), ...newRequired]
         }
@@ -581,7 +562,7 @@ export class SchemaBuilder<T> {
     addEnum<K extends keyof any, K2 extends string | boolean | number | null, REQUIRED extends boolean = true, N extends boolean = false>(
         propertyName: K,
         values: readonly K2[],
-        schema: Pick<JSONSchema, JSONSchemaEnumProperties> = {},
+        schema: Pick<JSONSchema, JSONSchemaCommonProperties> = {},
         isRequired?: REQUIRED,
         nullable?: N,
     ): SchemaBuilder<{ [P in keyof Combine<T, K2, K, REQUIRED, N>]: Combine<T, K2, K, REQUIRED, N>[P] }> {
@@ -644,22 +625,28 @@ export class SchemaBuilder<T> {
         propertyName: K,
         newPropertyName: K2,
     ): SchemaBuilder<{ [P in keyof Rename<T, K, K2>]: Rename<T, K, K2>[P] }> {
-        if (!this.isSimpleObjectSchema) {
+        this.assertSimpleObjectSchema("renameProperty")
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        const source = propertyName as string
+        const target = newPropertyName as string
+        if (!(source in schemaObject.properties!)) {
+            throw new VError(`Schema Builder Error: 'renameProperty' called with unknown property '${source}' on ${schemaObject.title || "this"} schema`)
+        }
+        if (source !== target && target in schemaObject.properties!) {
             throw new VError(
-                `Schema Builder Error: 'renameProperty' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
+                `Schema Builder Error: 'renameProperty' target '${target}' already exists in ${schemaObject.title || "this"} schema`,
             )
         }
-        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
-        if (propertyName in schemaObject.properties!) {
-            schemaObject.properties![newPropertyName as string] = schemaObject.properties![propertyName as string]
-            delete schemaObject.properties![propertyName as string]
-            // rename the property in the required array if needed
-            if (schemaObject.required && schemaObject.required.indexOf(propertyName as string) !== -1) {
-                const newRequired = [...schemaObject.required]
-                newRequired.splice(newRequired.indexOf(propertyName as string), 1)
-                newRequired.push(newPropertyName as string)
-                schemaObject.required = newRequired
+        schemaObject.properties![target] = schemaObject.properties![source]
+        if (source !== target) {
+            delete schemaObject.properties![source]
+        }
+        if (schemaObject.required && schemaObject.required.indexOf(source) !== -1) {
+            const newRequired = schemaObject.required.filter((p: string) => p !== source)
+            if (newRequired.indexOf(target) === -1) {
+                newRequired.push(target)
             }
+            schemaObject.required = newRequired
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -704,7 +691,7 @@ export class SchemaBuilder<T> {
     ): SchemaBuilder<Pick<T, K> & { [P in K2]: T[P] }> {
         if (!this.isObjectSchema || !this.hasAdditionalProperties || this.hasSchemasCombinationKeywords) {
             throw new VError(
-                `Schema Builder Error: 'pickPropertiesIncludingAdditonalProperties' can only be used with a simple object schema with additionalProperties (no oneOf, anyOf, allOf or not)`,
+                `Schema Builder Error: 'pickAdditionalProperties' can only be used with a simple object schema with additionalProperties (no oneOf, anyOf, allOf or not)`,
             )
         }
         const schemaObject = cloneRoot(this.schemaObject)
@@ -746,11 +733,7 @@ export class SchemaBuilder<T> {
      * Filter the schema to contains everything except the given properties.
      */
     omitProperties<K extends keyof T>(properties: readonly K[]): SchemaBuilder<{ [P in keyof Omit<T, K>]: Omit<T, K>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'omitProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("omitProperties")
         let p = Object.keys(this.schemaObject.properties || {}).filter((k) => (properties as readonly string[]).indexOf(k) === -1)
         return this.pickProperties(p as any)
     }
@@ -765,11 +748,7 @@ export class SchemaBuilder<T> {
         schemaBuilder: SchemaBuilder<U>,
         propertyNames?: readonly K[],
     ): SchemaBuilder<{ [P in keyof TransformProperties<T, K, U>]: TransformProperties<T, K, U>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'transformProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("transformProperties")
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
         for (const property of propertyNames) {
@@ -792,11 +771,7 @@ export class SchemaBuilder<T> {
         propertyNames?: readonly K[],
         schema: Pick<JSONSchema, JSONSchemaArraySpecificProperties> = {},
     ): SchemaBuilder<{ [P in keyof TransformPropertiesToArray<T, K>]: TransformPropertiesToArray<T, K>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'transformPropertiesToArray' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("transformPropertiesToArray")
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
         for (const property of propertyNames) {
@@ -820,11 +795,7 @@ export class SchemaBuilder<T> {
     unwrapArrayProperties<K extends keyof T>(
         propertyNames?: readonly K[],
     ): SchemaBuilder<{ [P in keyof UnwrapArrayProperties<T, K>]: UnwrapArrayProperties<T, K>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'unwrapArrayProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("unwrapArrayProperties")
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
         for (const property of propertyNames) {
@@ -855,11 +826,7 @@ export class SchemaBuilder<T> {
      * This method only copy properties.
      */
     intersectProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof (T & T2)]: (T & T2)[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'intersectProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("intersectProperties")
         const schemaObject1 = cloneRoot(this.schemaObject, { properties: {}, required: [] })
         const schemaObject2 = cloneJSON(schema.schemaObject)
         if (schemaObject2.properties) {
@@ -890,11 +857,7 @@ export class SchemaBuilder<T> {
      * This method only copy properties.
      */
     mergeProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof Merge<T, T2>]: Merge<T, T2>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'mergeProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("mergeProperties")
         const schemaObject1 = cloneRoot(this.schemaObject, { properties: {}, required: [] })
         const schemaObject2 = cloneJSON(schema.schemaObject)
         if (schemaObject2.properties) {
@@ -928,11 +891,7 @@ export class SchemaBuilder<T> {
      * This method only copy properties.
      */
     overwriteProperties<T2>(schema: SchemaBuilder<T2>): SchemaBuilder<{ [P in keyof Overwrite<T, T2>]: Overwrite<T, T2>[P] }> {
-        if (!this.isSimpleObjectSchema) {
-            throw new VError(
-                `Schema Builder Error: 'overwriteProperties' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
-            )
-        }
+        this.assertSimpleObjectSchema("overwriteProperties")
         const schemaObject1 = cloneRoot(this.schemaObject, { properties: {}, required: [] })
         const schemaObject2 = cloneJSON(schema.schemaObject)
         if (schemaObject2.properties) {
@@ -1024,6 +983,19 @@ export class SchemaBuilder<T> {
      */
     get isSimpleObjectSchema() {
         return this.isObjectSchema && !this.hasAdditionalProperties && !this.hasSchemasCombinationKeywords
+    }
+
+    /**
+     * Internal guard used by methods that require a "simple" object schema
+     * (no additionalProperties, oneOf, anyOf, allOf or not). Throws a uniform
+     * error message naming the calling method.
+     */
+    private assertSimpleObjectSchema(methodName: string): void {
+        if (!this.isSimpleObjectSchema) {
+            throw new VError(
+                `Schema Builder Error: '${methodName}' can only be used with a simple object schema (no additionalProperties, oneOf, anyOf, allOf or not)`,
+            )
+        }
     }
 
     /**
@@ -1275,8 +1247,6 @@ export type JSONSchemaArrayProperties = JSONSchemaCommonProperties | JSONSchemaA
 export type JSONSchemaStringProperties = JSONSchemaCommonProperties | "maxLength" | "minLength" | "pattern" | "format"
 
 export type JSONSchemaNumberProperties = JSONSchemaCommonProperties | "multipleOf" | "maximum" | "exclusiveMaximum" | "minimum" | "exclusiveMinimum"
-
-export type JSONSchemaEnumProperties = JSONSchemaCommonProperties
 
 export type JSONSchemaBooleanProperties = JSONSchemaCommonProperties
 

@@ -19,41 +19,58 @@ function copyContainer(data: any): any {
 }
 
 /**
+ * Walk `path` over a structurally-shared copy of `data`, cloning every container
+ * touched along the way and finally invoking `apply` on the immediate parent of
+ * the leaf key.
+ *
+ * Ancestors that don't already exist are either created (for `set`) or cause the
+ * walk to abort early (for `unset`), leaving the partial copy untouched beyond
+ * the branch that already existed.
+ */
+function mutatePath(
+    path: PropertyAccessorPath,
+    data: any,
+    onMissingIntermediate: "create" | "abort",
+    apply: (parent: any, lastKey: string | number) => void,
+): any {
+    const root = copyContainer(data)
+    if (path.length === 0) {
+        return root
+    }
+    let current: any = root
+    for (let i = 0; i < path.length - 1; ++i) {
+        const key = path[i]
+        const existing = current[key]
+        if (!existing) {
+            if (onMissingIntermediate === "abort") {
+                return root
+            }
+            current[key] = typeof path[i + 1] === "string" ? {} : []
+        } else {
+            current[key] = copyContainer(existing)
+        }
+        current = current[key]
+    }
+    apply(current, path[path.length - 1])
+    return root
+}
+
+/**
  * Set a deep property and ensure that any object/array along the path is copied or initialized
  */
 function setWithPath(path: PropertyAccessorPath, data: any, value: any) {
-    data = copyContainer(data)
-    let current: any = data
-    for (let i = 0; i < path.length; ++i) {
-        const key = path[i]
-        if (i === path.length - 1) {
-            current[key] = value
-        } else {
-            current[key] = current[key] ? copyContainer(current[key]) : typeof path[i + 1] === "string" ? {} : []
-            current = current[key]
-        }
-    }
-    return data
+    return mutatePath(path, data, "create", (parent, key) => {
+        parent[key] = value
+    })
 }
 
 /**
  * Unset a deep property and ensure that any object/array along the path is copied
  */
 function unsetWithPath(path: PropertyAccessorPath, data: any) {
-    data = copyContainer(data)
-    let current: any = data
-    for (let i = 0; i < path.length; ++i) {
-        const key = path[i]
-        if (i === path.length - 1) {
-            delete current[key]
-        }
-        if (!current[key]) {
-            break
-        }
-        current[key] = copyContainer(current[key])
-        current = current[key]
-    }
-    return data
+    return mutatePath(path, data, "abort", (parent, key) => {
+        delete parent[key]
+    })
 }
 
 /**
@@ -130,7 +147,7 @@ export type PropertyAccessorBuilder<D, V, PATH extends PropertyAccessorPath> = P
      * type M = {o: S | N}
      * pa.o.narrow<S>().s
      * ```
-     * @param typeFilter filter type function that should narrow the type and return the value
+     * @param schemaTransform optional function that derives a narrowed schema from the current one. Required when the property accessor was built with a schema.
      */
     narrow<X extends V>(schemaTransform?: (s: SchemaBuilder<V>) => SchemaBuilder<X>): PropertyAccessorBuilder<D, X, PATH>
 } & {

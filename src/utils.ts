@@ -26,7 +26,9 @@ export function cloneRoot<T extends object>(root: T, defaults: Partial<T> = {}):
 }
 
 /**
- * Utility method to deep clone JSON objects
+ * Utility method to deep clone JSON objects.
+ * Only own enumerable keys are copied — prototype-chain properties are ignored.
+ * `Date`, `RegExp`, `Map`, `Set` etc. are not preserved (treated as plain objects).
  */
 export function cloneJSON<T>(o: T): T {
     if (typeof o !== "object" || o === null) {
@@ -36,7 +38,7 @@ export function cloneJSON<T>(o: T): T {
         return (o as any).map(cloneJSON)
     }
     const r = {} as T
-    for (const key in o) {
+    for (const key of Object.keys(o) as (keyof T)[]) {
         r[key] = cloneJSON(o[key])
     }
     return r
