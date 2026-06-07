@@ -126,6 +126,20 @@ export type OneOf<T> = T extends [SchemaBuilder<any>, SchemaBuilder<any>, ...any
 export type ArrayToAllOfObject<T> = T extends [...infer R] ? { t: AllOf<R> } : any
 
 /**
+ * Type that transforms a list of SchemaBuilders into the tuple of their underlying types.
+ * [SchemaBuilder<T1>, SchemaBuilder<T2>, ...] => [T1, T2, ...]
+ */
+export type TupleOf<S extends readonly SchemaBuilder<any>[]> = {
+    -readonly [K in keyof S]: S[K] extends SchemaBuilder<infer U> ? U : never
+}
+
+/**
+ * Tuple type for a fixed prefix optionally followed by a rest element.
+ * If `R` is `never`, the resulting tuple is closed. Otherwise an `...R[]` rest is appended.
+ */
+export type TupleOfWithRest<S extends readonly SchemaBuilder<any>[], R> = [R] extends [never] ? TupleOf<S> : [...TupleOf<S>, ...R[]]
+
+/**
  * Type that transform a list of SchemaBuilders in the following manner
  * [SchemaBuilder<T1>, SchemaBuilder<T2>, ...] => T1 & T2 & ...
  */

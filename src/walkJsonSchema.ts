@@ -12,10 +12,14 @@ export type JsonSchemaKeyword =
     | "patternProperties"
     | "additionalProperties"
     | "propertyNames"
-    | "dependencies"
+    | "dependentSchemas"
     | "items"
-    | "additionalItems"
+    | "prefixItems"
     | "contains"
+    | "unevaluatedItems"
+    | "unevaluatedProperties"
+    | "contentSchema"
+    | "$defs"
     | "if"
     | "then"
     | "else"
@@ -32,18 +36,20 @@ export type JsonSchemaKeyword =
  * schema or a collection of schemas:
  *
  * - applicators on objects: `properties`, `patternProperties`, `additionalProperties`,
- *   `propertyNames`, `dependencies` (schema-form entries only)
- * - applicators on arrays: `items` (single or tuple form), `additionalItems`, `contains`
+ *   `propertyNames`, `dependentSchemas`, `unevaluatedProperties`
+ * - applicators on arrays: `items`, `prefixItems`, `contains`, `unevaluatedItems`
  * - conditionals: `if`, `then`, `else`
  * - composition: `oneOf`, `allOf`, `anyOf`, `not`
+ * - reuse: `$defs`
+ * - content: `contentSchema`
  *
- * Boolean subschemas (allowed by JSON Schema draft-07+), `null`, primitives, and the
- * `string[]` form of `dependencies` are accepted as input but produce no callback.
+ * Boolean subschemas, `null` and primitives are accepted as input but produce no
+ * callback.
  *
  * The callback is invoked on the root schema first, then on each nested schema in a
  * pre-order traversal. Each entry of a `properties` / `patternProperties` /
- * `dependencies` map is visited individually — the container map itself is never
- * passed to `action`.
+ * `dependentSchemas` / `$defs` map is visited individually — the container map
+ * itself is never passed to `action`.
  *
  * The callback receives the keyword name under which the current schema was found
  * as its second argument (`undefined` for the root schema, or for each entry when an
@@ -75,7 +81,7 @@ export function walkJsonSchema(
 }
 
 function walk(
-    schema: JSONSchema | JSONSchema[],
+    schema: JSONSchema | JSONSchema[] | boolean,
     action: (schema: JSONSchema, keyword?: JsonSchemaKeyword) => void,
     keyword: JsonSchemaKeyword | undefined,
 ): void {
@@ -92,37 +98,50 @@ function walk(
 
     if (schema.properties) {
         for (const property in schema.properties) {
-            walk(schema.properties[property] as JSONSchema, action, "properties")
+            walk(schema.properties[property], action, "properties")
         }
     }
     if (schema.patternProperties) {
         for (const pattern in schema.patternProperties) {
-            walk(schema.patternProperties[pattern] as JSONSchema, action, "patternProperties")
+            walk(schema.patternProperties[pattern], action, "patternProperties")
         }
     }
     if (schema.additionalProperties && typeof schema.additionalProperties !== "boolean") {
         walk(schema.additionalProperties, action, "additionalProperties")
     }
+    if (schema.unevaluatedProperties && typeof schema.unevaluatedProperties !== "boolean") {
+        walk(schema.unevaluatedProperties, action, "unevaluatedProperties")
+    }
     if (schema.propertyNames && typeof schema.propertyNames !== "boolean") {
         walk(schema.propertyNames, action, "propertyNames")
     }
-    if (schema.dependencies) {
-        for (const key in schema.dependencies) {
-            const dep = schema.dependencies[key]
-            if (dep && !Array.isArray(dep) && typeof dep !== "boolean") {
-                walk(dep, action, "dependencies")
-            }
+    if (schema.dependentSchemas) {
+        for (const key in schema.dependentSchemas) {
+            walk(schema.dependentSchemas[key], action, "dependentSchemas")
         }
     }
 
-    if (schema.items) {
-        walk(schema.items as JSONSchema | JSONSchema[], action, "items")
+    if (schema.prefixItems) {
+        schema.prefixItems.forEach((s) => walk(s, action, "prefixItems"))
     }
-    if (schema.additionalItems && typeof schema.additionalItems !== "boolean") {
-        walk(schema.additionalItems, action, "additionalItems")
+    if (schema.items && typeof schema.items !== "boolean") {
+        walk(schema.items, action, "items")
+    }
+    if (schema.unevaluatedItems && typeof schema.unevaluatedItems !== "boolean") {
+        walk(schema.unevaluatedItems, action, "unevaluatedItems")
     }
     if (schema.contains && typeof schema.contains !== "boolean") {
         walk(schema.contains, action, "contains")
+    }
+
+    if (schema.contentSchema && typeof schema.contentSchema !== "boolean") {
+        walk(schema.contentSchema, action, "contentSchema")
+    }
+
+    if (schema.$defs) {
+        for (const key in schema.$defs) {
+            walk(schema.$defs[key], action, "$defs")
+        }
     }
 
     if (schema.if && typeof schema.if !== "boolean") {
@@ -136,13 +155,13 @@ function walk(
     }
 
     if (schema.oneOf) {
-        schema.oneOf.forEach((s) => walk(s as JSONSchema, action, "oneOf"))
+        schema.oneOf.forEach((s) => walk(s, action, "oneOf"))
     }
     if (schema.allOf) {
-        schema.allOf.forEach((s) => walk(s as JSONSchema, action, "allOf"))
+        schema.allOf.forEach((s) => walk(s, action, "allOf"))
     }
     if (schema.anyOf) {
-        schema.anyOf.forEach((s) => walk(s as JSONSchema, action, "anyOf"))
+        schema.anyOf.forEach((s) => walk(s, action, "anyOf"))
     }
     if (schema.not && typeof schema.not !== "boolean") {
         walk(schema.not, action, "not")

@@ -65,6 +65,63 @@ describe("Schema Builder", function () {
         expect(() => schemaBuilder.validate({} as any)).to.throw()
     })
 
+    it("should create tuple schemas and validate data", function () {
+        const tuple = SB.tupleSchema([SB.stringSchema(), SB.numberSchema(), SB.booleanSchema()])
+        expect(tuple.schema.type).to.equal("array")
+        expect((tuple.schema.prefixItems as any).length).to.equal(3)
+        expect(tuple.schema.items).to.equal(false)
+        expect(tuple.schema.minItems).to.equal(3)
+        expect(() => tuple.validate(["a", 1, true] as any)).to.not.throw()
+        // missing items
+        expect(() => tuple.validate(["a", 1] as any)).to.throw()
+        // wrong type at position
+        expect(() => tuple.validate([1, "a", true] as any)).to.throw()
+        // extra items
+        expect(() => tuple.validate(["a", 1, true, "x"] as any)).to.throw()
+    })
+
+    it("should create nullable tuple schemas", function () {
+        const tuple = SB.tupleSchema([SB.stringSchema(), SB.numberSchema()], {}, true)
+        expect(tuple.schema.type).to.eql(["array", "null"])
+        expect(() => tuple.validate(["a", 1] as any)).to.not.throw()
+        expect(() => tuple.validate(null as any)).to.not.throw()
+    })
+
+    it("should create tuple schemas with a rest element", function () {
+        const tuple = SB.tupleSchema([SB.stringSchema(), SB.numberSchema()], { rest: SB.booleanSchema() })
+        expect(tuple.schema.type).to.equal("array")
+        expect((tuple.schema.prefixItems as any).length).to.equal(2)
+        expect(tuple.schema.items).to.eql({ type: "boolean" })
+        expect(tuple.schema.minItems).to.equal(2)
+        // exact-length still valid
+        expect(() => tuple.validate(["a", 1] as any)).to.not.throw()
+        // rest elements must match the rest schema
+        expect(() => tuple.validate(["a", 1, true, false] as any)).to.not.throw()
+        // wrong type in rest
+        expect(() => tuple.validate(["a", 1, "nope"] as any)).to.throw()
+        // missing prefix item
+        expect(() => tuple.validate(["a"] as any)).to.throw()
+    })
+
+    it("should addTuple with a rest element", function () {
+        const schemaBuilder = SB.emptySchema().addTuple("xs", [SB.stringSchema()], { rest: SB.numberSchema() })
+        expect(() => schemaBuilder.validate({ xs: ["a"] })).to.not.throw()
+        expect(() => schemaBuilder.validate({ xs: ["a", 1, 2, 3] })).to.not.throw()
+        expect(() => schemaBuilder.validate({ xs: ["a", "b"] } as any)).to.throw()
+        expect(() => schemaBuilder.validate({ xs: [] } as any)).to.throw()
+    })
+
+    it("should addTuple on an object schema and validate data", function () {
+        const schemaBuilder = SB.emptySchema()
+            .addTuple("pair", [SB.stringSchema(), SB.numberSchema()])
+            .addTuple("optionalPair", [SB.stringSchema(), SB.numberSchema()], {}, false)
+        expect(() => schemaBuilder.validate({ pair: ["a", 1] })).to.not.throw()
+        expect(() => schemaBuilder.validate({ pair: ["a", 1], optionalPair: ["b", 2] })).to.not.throw()
+        expect(() => schemaBuilder.validate({} as any)).to.throw()
+        expect(() => schemaBuilder.validate({ pair: ["a"] } as any)).to.throw()
+        expect(() => schemaBuilder.validate({ pair: [1, "a"] } as any)).to.throw()
+    })
+
     it("should add multiple properties at the same time and validate data", function () {
         let schemaBuilder = SB.emptySchema().addProperties({
             s1: SB.stringSchema(),
@@ -635,7 +692,7 @@ describe("Schema Builder", function () {
                 },
                 aMultiArray: {
                     type: "array",
-                    items: [
+                    prefixItems: [
                         {
                             type: "string",
                         },
@@ -894,7 +951,7 @@ describe("Schema Builder", function () {
                 } as any)
             } catch (error) {
                 expect(error).to.exist
-                expect(error.message).to.equal(
+                expect((error as any).message).to.equal(
                     "Invalid parameters: data must have required property 'as', data/ao/bo/ciMinMax must be >= 10, data/aaeOpt/3 must be equal to one of the allowed values",
                 )
             }
@@ -1177,48 +1234,34 @@ describe("Schema Builder", function () {
     describe("Instance edge cases", function () {
         it("addProperties throws on a name collision with the existing schema", function () {
             const s = SB.emptySchema({ title: "Box" }).addString("a")
-            expect(() => s.addProperties({ a: SB.stringSchema() })).to.throw(
-                "Schema Builder Error: 'a' already exists in Box schema",
-            )
+            expect(() => s.addProperties({ a: SB.stringSchema() })).to.throw("Schema Builder Error: 'a' already exists in Box schema")
         })
 
         it("addProperties throws when called on a non-object schema", function () {
-            expect(() => (SB.stringSchema() as any).addProperties({ a: SB.stringSchema() })).to.throw(
-                "you can only add properties to an object schema",
-            )
+            expect(() => (SB.stringSchema() as any).addProperties({ a: SB.stringSchema() })).to.throw("you can only add properties to an object schema")
         })
 
         it("addProperty throws when called on a non-object schema", function () {
-            expect(() => (SB.stringSchema() as any).addProperty("a", SB.stringSchema())).to.throw(
-                "you can only add properties to an object schema",
-            )
+            expect(() => (SB.stringSchema() as any).addProperty("a", SB.stringSchema())).to.throw("you can only add properties to an object schema")
         })
 
         it("replaceProperty throws when called on a non-object schema", function () {
-            expect(() => (SB.stringSchema() as any).replaceProperty("a", SB.stringSchema())).to.throw(
-                "you can only replace properties of an object schema",
-            )
+            expect(() => (SB.stringSchema() as any).replaceProperty("a", SB.stringSchema())).to.throw("you can only replace properties of an object schema")
         })
 
         it("renameProperty throws when the source property does not exist", function () {
             const s = SB.emptySchema({ title: "Box" }).addString("a")
-            expect(() => (s as any).renameProperty("missing", "x")).to.throw(
-                "'renameProperty' called with unknown property 'missing' on Box schema",
-            )
+            expect(() => (s as any).renameProperty("missing", "x")).to.throw("'renameProperty' called with unknown property 'missing' on Box schema")
         })
 
         it("renameProperty throws when the target name already exists", function () {
             const s = SB.emptySchema({ title: "Box" }).addString("a").addString("b")
-            expect(() => (s as any).renameProperty("a", "b")).to.throw(
-                "'renameProperty' target 'b' already exists in Box schema",
-            )
+            expect(() => (s as any).renameProperty("a", "b")).to.throw("'renameProperty' target 'b' already exists in Box schema")
         })
 
         it("renameProperty throws when source and target are the same", function () {
             const s = SB.emptySchema({ title: "Box" }).addString("a")
-            expect(() => (s as any).renameProperty("a", "a")).to.throw(
-                "'renameProperty' source and target are both 'a' on Box schema",
-            )
+            expect(() => (s as any).renameProperty("a", "a")).to.throw("'renameProperty' source and target are both 'a' on Box schema")
         })
 
         it("replaceProperty throws when the property does not exist", function () {
@@ -1273,24 +1316,26 @@ describe("Schema Builder", function () {
         })
 
         it("unwrapArrayProperties leaves a non-array property unchanged", function () {
-            const s = SB.emptySchema().addString("s").unwrapArrayProperties(["s"] as any)
+            const s = SB.emptySchema()
+                .addString("s")
+                .unwrapArrayProperties(["s"] as any)
             expect((s.schema.properties as any).s.type).to.equal("string")
         })
 
-        it("unwrapArrayProperties handles a single-element tuple `items`", function () {
-            const inner = SB.emptySchema().addProperty("a", SB.fromJsonSchema({ type: "array", items: [{ type: "string" } as any] } as const))
+        it("unwrapArrayProperties handles a single-element `prefixItems` tuple", function () {
+            const inner = SB.emptySchema().addProperty("a", SB.fromJsonSchema({ type: "array", prefixItems: [{ type: "string" } as any] } as const))
             const result = (inner as any).unwrapArrayProperties(["a"])
             const a: any = (result.schema.properties as any).a
             expect(a.oneOf).to.be.an("array")
             expect(a.oneOf[0]).to.eql({ type: "string" })
         })
 
-        it("unwrapArrayProperties wraps a multi-element tuple `items` in oneOf", function () {
+        it("unwrapArrayProperties wraps a multi-element `prefixItems` tuple in oneOf", function () {
             const inner = SB.fromJsonSchema({
                 type: "object",
                 additionalProperties: false,
                 properties: {
-                    a: { type: "array", items: [{ type: "string" }, { type: "number" }] },
+                    a: { type: "array", prefixItems: [{ type: "string" }, { type: "number" }] },
                 },
             } as const)
             const result = (inner as any).unwrapArrayProperties(["a"])
@@ -1301,16 +1346,12 @@ describe("Schema Builder", function () {
 
         it("getItemsSubschema throws when the schema is not an array schema", function () {
             const s = SB.emptySchema().addString("s")
-            expect(() => (s as any).getItemsSubschema()).to.throw(
-                "'getItemsSubschema' can only be used with an array schema with non-array items",
-            )
+            expect(() => (s as any).getItemsSubschema()).to.throw("'getItemsSubschema' can only be used with an array schema with non-tuple items")
         })
 
-        it("getItemsSubschema throws when `items` is itself an array (tuple form)", function () {
-            const tuple = SB.fromJsonSchema({ type: "array", items: [{ type: "string" }, { type: "number" }] } as const)
-            expect(() => (tuple as any).getItemsSubschema()).to.throw(
-                "'getItemsSubschema' can only be used with an array schema with non-array items",
-            )
+        it("getItemsSubschema throws when the schema uses `prefixItems` (tuple form)", function () {
+            const tuple = SB.fromJsonSchema({ type: "array", prefixItems: [{ type: "string" }, { type: "number" }] } as const)
+            expect(() => (tuple as any).getItemsSubschema()).to.throw("'getItemsSubschema' can only be used with an array schema with non-tuple items")
         })
 
         it("addAdditionalProperties without a builder sets it to `true`", function () {
@@ -1418,9 +1459,28 @@ describe("Schema Builder", function () {
             expect(withTrue.toTypescript()[1]).to.contain(".addAdditionalProperties()")
         })
 
-        it("throws 'Unimplemented tuple' when an array schema uses tuple-form items", function () {
-            const tuple = SB.fromJsonSchema({ type: "array", items: [{ type: "string" }, { type: "number" }] } as const)
-            expect(() => tuple.toTypescript()).to.throw("Unimplemented tuple")
+        it("emits SB.tupleSchema for an array schema with prefixItems", function () {
+            const tuple = SB.tupleSchema([SB.stringSchema(), SB.numberSchema()])
+            const code = tuple.toTypescript()[1]
+            expect(code).to.contain("SB.tupleSchema([SB.stringSchema(), SB.numberSchema()])")
+        })
+
+        it("emits SB.tupleSchema with `rest` option when items is a schema", function () {
+            const tuple = SB.tupleSchema([SB.stringSchema()], { rest: SB.numberSchema() })
+            const code = tuple.toTypescript()[1]
+            expect(code).to.contain("SB.tupleSchema([SB.stringSchema()]")
+            expect(code).to.contain("rest: SB.numberSchema()")
+        })
+
+        it("preserves a non-default minItems override when emitting SB.tupleSchema", function () {
+            const tuple = SB.fromJsonSchema({
+                type: "array",
+                prefixItems: [{ type: "string" }, { type: "number" }],
+                items: false,
+                minItems: 1,
+            } as const)
+            const code = tuple.toTypescript()[1]
+            expect(code).to.contain('"minItems":1')
         })
 
         it("returns a named-schema reference when recursing into a child that has a `title`", function () {

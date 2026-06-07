@@ -71,20 +71,22 @@ describe("walkJsonSchema", function () {
         expect(collectTitles(schema)).to.eql(["root", "names"])
     })
 
-    it("walks the schema-form entries of `dependencies` and skips the string[] entries", function () {
+    it("walks every entry of `dependentSchemas`", function () {
         const schema: JSONSchema = {
             title: "root",
             type: "object",
-            dependencies: {
+            dependentRequired: {
                 a: ["b"],
-                c: { title: "c-dep", required: ["d"] } as JSONSchema,
-                e: { title: "e-dep" } as JSONSchema,
+            },
+            dependentSchemas: {
+                c: { title: "c-dep", required: ["d"] },
+                e: { title: "e-dep" },
             },
         }
         expect(collectTitles(schema)).to.eql(["root", "c-dep", "e-dep"])
     })
 
-    it("walks `items` whether it is a single schema or a tuple of schemas", function () {
+    it("walks `items` as a single schema and `prefixItems` as a tuple of schemas", function () {
         const single: JSONSchema = {
             title: "root",
             type: "array",
@@ -95,7 +97,7 @@ describe("walkJsonSchema", function () {
         const tuple: JSONSchema = {
             title: "root",
             type: "array",
-            items: [
+            prefixItems: [
                 { title: "i0", type: "string" },
                 { title: "i1", type: "number" },
             ],
@@ -103,12 +105,12 @@ describe("walkJsonSchema", function () {
         expect(collectTitles(tuple)).to.eql(["root", "i0", "i1"])
     })
 
-    it("walks `additionalItems` and `contains`", function () {
+    it("walks `prefixItems`, `items` (as additional-items) and `contains`", function () {
         const schema: JSONSchema = {
             title: "root",
             type: "array",
-            items: [{ title: "i0" }],
-            additionalItems: { title: "extra-item" },
+            prefixItems: [{ title: "i0" }],
+            items: { title: "extra-item" },
             contains: { title: "contained" },
         }
         expect(collectTitles(schema)).to.eql(["root", "i0", "extra-item", "contained"])
@@ -147,13 +149,13 @@ describe("walkJsonSchema", function () {
             title: "root",
             additionalProperties: true,
             propertyNames: false,
-            additionalItems: true,
+            items: true,
             contains: false,
             if: true,
             then: false,
             else: true,
             not: false,
-            dependencies: { x: true as any, y: false as any },
+            dependentSchemas: { x: true, y: false },
         }
         expect(collectTitles(schema)).to.eql(["root"])
     })
@@ -207,14 +209,14 @@ describe("walkJsonSchema", function () {
         const schema: JSONSchema = {
             type: "object",
             patternProperties: {
-                "^a": { $ref: "#/definitions/X" } as JSONSchema,
+                "^a": { $ref: "#/$defs/X" },
             },
         }
         const refs: string[] = []
         walkJsonSchema(schema, (s) => {
             if (s.$ref) refs.push(s.$ref)
         })
-        expect(refs).to.eql(["#/definitions/X"])
+        expect(refs).to.eql(["#/$defs/X"])
     })
 
     it("invokes the callback in pre-order (parent before children)", function () {
@@ -263,7 +265,7 @@ describe("walkJsonSchema", function () {
                 patternProperties: { "^x": { title: "pp-child" } },
                 additionalProperties: { title: "ap-child" },
                 propertyNames: { title: "pn-child", type: "string" },
-                dependencies: { k: { title: "dep-child" } as JSONSchema },
+                dependentSchemas: { k: { title: "dep-child" } },
             }
             expect(collectKeywords(schema)).to.eql([
                 ["root", undefined],
@@ -271,22 +273,22 @@ describe("walkJsonSchema", function () {
                 ["pp-child", "patternProperties"],
                 ["ap-child", "additionalProperties"],
                 ["pn-child", "propertyNames"],
-                ["dep-child", "dependencies"],
+                ["dep-child", "dependentSchemas"],
             ])
         })
 
         it("identifies array-applicator keywords", function () {
             const schema: JSONSchema = {
                 title: "root",
-                items: [{ title: "i0" }, { title: "i1" }],
-                additionalItems: { title: "extra" },
+                prefixItems: [{ title: "i0" }, { title: "i1" }],
+                items: { title: "extra" },
                 contains: { title: "c" },
             }
             expect(collectKeywords(schema)).to.eql([
                 ["root", undefined],
-                ["i0", "items"],
-                ["i1", "items"],
-                ["extra", "additionalItems"],
+                ["i0", "prefixItems"],
+                ["i1", "prefixItems"],
+                ["extra", "items"],
                 ["c", "contains"],
             ])
         })
@@ -367,8 +369,8 @@ describe("walkJsonSchema", function () {
             if: { $ref: "#/defs/If" } as JSONSchema,
             then: { $ref: "#/defs/Then" } as JSONSchema,
             else: { $ref: "#/defs/Else" } as JSONSchema,
-            dependencies: {
-                k: { $ref: "#/defs/Dep" } as JSONSchema,
+            dependentSchemas: {
+                k: { $ref: "#/defs/Dep" },
             },
         }
         const refs: string[] = []

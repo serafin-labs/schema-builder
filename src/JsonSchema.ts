@@ -6,6 +6,9 @@ export interface JSONSchema {
     $id?: string
     $ref?: string
     $schema?: string
+    $defs?: {
+        [key: string]: JSONSchema | boolean
+    }
 
     type?: JSONSchemaTypeName | JSONSchemaTypeName[]
     enum?: JSONSchemaValue[]
@@ -21,12 +24,14 @@ export interface JSONSchema {
     minLength?: number
     pattern?: string
 
-    items?: (JSONSchema | boolean) | (JSONSchema | boolean)[]
-    additionalItems?: JSONSchema | boolean
+    prefixItems?: (JSONSchema | boolean)[]
+    items?: JSONSchema | boolean
     maxItems?: number
     minItems?: number
     uniqueItems?: boolean
     contains?: JSONSchema | boolean
+    maxContains?: number
+    minContains?: number
 
     maxProperties?: number
     minProperties?: number
@@ -38,8 +43,11 @@ export interface JSONSchema {
         [key: string]: JSONSchema | boolean
     }
     additionalProperties?: JSONSchema | boolean
-    dependencies?: {
-        [key: string]: (JSONSchema | boolean) | string[]
+    dependentRequired?: {
+        [key: string]: string[]
+    }
+    dependentSchemas?: {
+        [key: string]: JSONSchema | boolean
     }
     propertyNames?: JSONSchema | boolean
 
@@ -52,10 +60,14 @@ export interface JSONSchema {
     oneOf?: (JSONSchema | boolean)[]
     not?: JSONSchema | boolean
 
+    unevaluatedItems?: JSONSchema | boolean
+    unevaluatedProperties?: JSONSchema | boolean
+
     format?: string
 
     contentMediaType?: string
     contentEncoding?: string
+    contentSchema?: JSONSchema | boolean
 
     title?: string
     description?: string

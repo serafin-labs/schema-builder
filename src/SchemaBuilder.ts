@@ -1,4 +1,5 @@
-import Ajv, { Options, ValidateFunction } from "ajv"
+import Ajv from "ajv/dist/2020.js"
+import type { Options, ValidateFunction } from "ajv"
 import VError from "verror"
 import _ from "lodash"
 import addFormats from "ajv-formats"
@@ -17,6 +18,7 @@ import {
     Nullable,
     OneOf,
     AllOf,
+    TupleOfWithRest,
     ObjectSchemaDefinition,
 } from "./TransformationTypes.js"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
@@ -293,6 +295,30 @@ export class SchemaBuilder<T> {
             ...cloneJSON(schema),
             type: nullable ? ["array", "null"] : "array",
             items: cloneJSON(items.schemaObject),
+        }
+        return new SchemaBuilder(s) as any
+    }
+
+    /**
+     * Create a tuple schema (fixed prefix of positionally-typed items).
+     *
+     * Emits `prefixItems` for the positional schemas and `minItems` equal to the prefix
+     * length so all positional items must be present. By default the tuple is closed
+     * (`items: false`); pass `schema.rest` to allow additional items of a given type,
+     * which yields a TypeScript `[T1, T2, ...R[]]` tuple.
+     */
+    static tupleSchema<S extends readonly SchemaBuilder<any>[], R = never, N extends boolean = false>(
+        items: readonly [...S],
+        schema: Pick<JSONSchema, JSONSchemaTupleProperties> & { rest?: SchemaBuilder<R> } = {},
+        nullable?: N,
+    ): N extends true ? SchemaBuilder<TupleOfWithRest<S, R> | null> : SchemaBuilder<TupleOfWithRest<S, R>> {
+        const { rest, ...rawSchema } = schema
+        let s: JSONSchema = {
+            ...cloneJSON(rawSchema),
+            type: nullable ? ["array", "null"] : "array",
+            prefixItems: items.map((item) => cloneJSON(item.schemaObject)),
+            items: rest ? cloneJSON(rest.schemaObject) : false,
+            minItems: items.length,
         }
         return new SchemaBuilder(s) as any
     }
@@ -630,6 +656,23 @@ export class SchemaBuilder<T> {
     }
 
     /**
+     * Add a tuple (fixed prefix of positionally-typed items) to the schema properties.
+     * Pass `schema.rest` to allow additional items of a given type, yielding a
+     * `[T1, T2, ...R[]]` TypeScript tuple.
+     */
+    addTuple<S extends readonly SchemaBuilder<any>[], R = never, K extends keyof any = string, REQUIRED extends boolean = true, N extends boolean = false>(
+        propertyName: K,
+        items: readonly [...S],
+        schema: Pick<JSONSchema, JSONSchemaTupleProperties> & { rest?: SchemaBuilder<R> } = {},
+        isRequired?: REQUIRED,
+        nullable?: N,
+    ): SchemaBuilder<{
+        [P in keyof Combine<T, TupleOfWithRest<S, R>, K, REQUIRED, N>]: Combine<T, TupleOfWithRest<S, R>, K, REQUIRED, N>[P]
+    }> {
+        return this.addProperty(propertyName, SchemaBuilder.tupleSchema(items, schema, nullable), isRequired) as any
+    }
+
+    /**
      * Rename the given property. The property schema remains unchanged.
      */
     renameProperty<K extends keyof T, K2 extends keyof any>(
@@ -812,14 +855,10 @@ export class SchemaBuilder<T> {
             const propertySchema = schemaObject.properties![property as string]
             // Transform the property if it's an array
             if ((propertySchema as JSONSchema).type === "array") {
-                const items = (propertySchema as JSONSchema).items
+                const { items, prefixItems } = propertySchema as JSONSchema
                 let itemsSchema: JSONSchema
-                if (Array.isArray(items)) {
-                    if (items.length === 1) {
-                        itemsSchema = items[0] as JSONSchema
-                    } else {
-                        itemsSchema = { oneOf: items }
-                    }
+                if (Array.isArray(prefixItems) && prefixItems.length > 0) {
+                    itemsSchema = prefixItems.length === 1 ? (prefixItems[0] as JSONSchema) : { oneOf: prefixItems }
                 } else {
                     itemsSchema = items as JSONSchema
                 }
@@ -966,8 +1005,8 @@ export class SchemaBuilder<T> {
      * Extract the item schema of the current array schema
      */
     getItemsSubschema() {
-        if (!this.schemaObject || !this.isArraySchema || !this.schemaObject.items || Array.isArray(this.schemaObject.items)) {
-            throw new VError(`Schema Builder Error: 'getItemsSubschema' can only be used with an array schema with non-array items`)
+        if (!this.schemaObject || !this.isArraySchema || !this.schemaObject.items || this.schemaObject.prefixItems) {
+            throw new VError(`Schema Builder Error: 'getItemsSubschema' can only be used with an array schema with non-tuple items`)
         } else {
             return new SchemaBuilder<T extends Array<infer ITEMS> ? ITEMS : never>(this.schemaObject.items as JSONSchema)
         }
@@ -1019,7 +1058,7 @@ export class SchemaBuilder<T> {
      * true if the schema represent an array
      */
     get isArraySchema() {
-        return this.hasType("array") || (!("type" in this.schemaObject) && "items" in this.schemaObject)
+        return this.hasType("array") || (!("type" in this.schemaObject) && ("items" in this.schemaObject || "prefixItems" in this.schemaObject))
     }
 
     /**
@@ -1176,9 +1215,29 @@ export class SchemaBuilder<T> {
                     case "null":
                         return o(`SB.nullSchema(${optionalStringify(restOfSchemaObject)})`, this)
                     case "array":
-                        const { items, ...restOfSchemaObjectForArray } = restOfSchemaObject
-                        if (Array.isArray(items)) {
-                            throw new Error(`Unimplemented tuple`) // @todo fix implementation when tuple are part of SchemaBuilder methods
+                        const { items, prefixItems, ...restOfSchemaObjectForArray } = restOfSchemaObject
+                        if (prefixItems) {
+                            // Strip the array-shape keywords that tupleSchema sets implicitly
+                            // so they don't get re-emitted as user-supplied options.
+                            const { minItems, ...restOfSchemaObjectForTuple } = restOfSchemaObjectForArray
+                            const keepMinItems = minItems !== undefined && minItems !== prefixItems.length
+                            const jsonOptions: any = keepMinItems ? { ...restOfSchemaObjectForTuple, minItems } : restOfSchemaObjectForTuple
+                            const tupleParts = prefixItems
+                                .map((p) => getSchemaBuilder(p)._toTypescript(false, customizeOutput))
+                                .join(", ")
+                            // When `items` is a schema (not `false`), it represents the tuple's rest element.
+                            // Emit it as the `rest:` entry of the options object so the inferred TS tuple
+                            // type is `[..., ...R[]]` rather than a closed tuple.
+                            const restCode = items && typeof items !== "boolean" ? getSchemaBuilder(items)._toTypescript(false, customizeOutput) : null
+                            let optionsArg = ""
+                            if (restCode !== null) {
+                                const jsonEntries = Object.entries(jsonOptions).map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`)
+                                const entries = [...jsonEntries, `rest: ${restCode}`]
+                                optionsArg = `, { ${entries.join(", ")} }`
+                            } else {
+                                optionsArg = optionalStringify(jsonOptions, isNull, ", ")
+                            }
+                            return o(`SB.tupleSchema([${tupleParts}]${optionsArg}${isNull ? ", true" : ""})`, this)
                         }
                         return o(
                             `SB.arraySchema(${getSchemaBuilder(items)._toTypescript(false, customizeOutput)}${optionalStringify(
@@ -1253,6 +1312,8 @@ export type JSONSchemaCommonProperties = "title" | "description" | "default" | "
 export type JSONSchemaArraySpecificProperties = "maxItems" | "minItems" | "uniqueItems"
 
 export type JSONSchemaArrayProperties = JSONSchemaCommonProperties | JSONSchemaArraySpecificProperties
+
+export type JSONSchemaTupleProperties = JSONSchemaCommonProperties | "uniqueItems"
 
 export type JSONSchemaStringProperties = JSONSchemaCommonProperties | "maxLength" | "minLength" | "pattern" | "format"
 
