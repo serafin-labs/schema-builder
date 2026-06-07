@@ -69,8 +69,8 @@ export class SchemaBuilder<T> {
         protected validationConfig?: Options,
     ) {
         walkJsonSchema(this.schemaObject, (s) => {
-            if ("$ref" in s) {
-                throw new VError(`Schema Builder Error: $ref can't be used to initialize a SchemaBuilder. Dereferenced the schema first.`)
+            if ("$ref" in s || "$dynamicRef" in s) {
+                throw new VError(`Schema Builder Error: $ref / $dynamicRef can't be used to initialize a SchemaBuilder. Dereferenced the schema first.`)
             }
         })
     }
@@ -356,6 +356,22 @@ export class SchemaBuilder<T> {
     static not(schemaBuilder: SchemaBuilder<any>) {
         return new SchemaBuilder<any>({
             not: cloneJSON(schemaBuilder.schemaObject),
+        })
+    }
+
+    /**
+     * Return a schema builder using `if`/`then`/`else` to switch between two type alternatives.
+     * The value must satisfy `thenBuilder` when `ifBuilder` matches, and `elseBuilder` otherwise.
+     *
+     * The resulting type is `Th | El`. Note that TypeScript cannot reason about JSON-Schema validation
+     * outcomes, so the union may include alternatives that are actually unreachable at runtime (for
+     * example when `if` and `then` describe disjoint shapes).
+     */
+    static ifThenElse<Th, El>(ifBuilder: SchemaBuilder<any>, thenBuilder: SchemaBuilder<Th>, elseBuilder: SchemaBuilder<El>): SchemaBuilder<Th | El> {
+        return new SchemaBuilder<any>({
+            if: cloneJSON(ifBuilder.schemaObject),
+            then: cloneJSON(thenBuilder.schemaObject),
+            else: cloneJSON(elseBuilder.schemaObject),
         })
     }
 
@@ -683,18 +699,14 @@ export class SchemaBuilder<T> {
         const source = propertyName as string
         const target = newPropertyName as string
         if (source === target) {
-            throw new VError(
-                `Schema Builder Error: 'renameProperty' source and target are both '${source}' on ${this.schemaObject.title || "this"} schema`,
-            )
+            throw new VError(`Schema Builder Error: 'renameProperty' source and target are both '${source}' on ${this.schemaObject.title || "this"} schema`)
         }
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         if (!(source in schemaObject.properties!)) {
             throw new VError(`Schema Builder Error: 'renameProperty' called with unknown property '${source}' on ${schemaObject.title || "this"} schema`)
         }
         if (target in schemaObject.properties!) {
-            throw new VError(
-                `Schema Builder Error: 'renameProperty' target '${target}' already exists in ${schemaObject.title || "this"} schema`,
-            )
+            throw new VError(`Schema Builder Error: 'renameProperty' target '${target}' already exists in ${schemaObject.title || "this"} schema`)
         }
         schemaObject.properties![target] = schemaObject.properties![source]
         delete schemaObject.properties![source]
@@ -1096,13 +1108,287 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * change general schema attributes
-     *
-     * @property schema
+     * change general schema attributes (`title`, `description`, `default`, `examples`, `readOnly`, `writeOnly`, `$id`, `deprecated`).
+     * `default` is typed as `T` and `examples` as `T[]` so they are checked against the schema's underlying type.
      */
-    setSchemaAttributes(schema: Pick<JSONSchema, JSONSchemaGeneralProperties>): SchemaBuilder<{ [P in keyof T]: T[P] }> {
-        const schemaObject = { ...this.schemaObject, ...schema }
+    setSchemaAttributes(schema: {
+        title?: string
+        description?: string
+        default?: T
+        examples?: T[]
+        readOnly?: boolean
+        writeOnly?: boolean
+        deprecated?: boolean
+        $id?: string
+    }): SchemaBuilder<{ [P in keyof T]: T[P] }> {
+        const schemaObject: JSONSchema = { ...this.schemaObject, ...(schema as Pick<JSONSchema, JSONSchemaCommonProperties>) }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Set string-specific validation constraints (`minLength`, `maxLength`, `pattern`, `format`).
+     * Constraints are shallow-merged onto the existing schema; pass `undefined` for a key to leave it unchanged.
+     *
+     * Only callable on a string (or nullable string) schema. Misuse is rejected at compile time
+     * via the `this` constraint and at runtime with a thrown error.
+     */
+    setStringConstraints(
+        this: [T] extends [string | null] ? SchemaBuilder<T> : never,
+        constraints: Pick<JSONSchema, "minLength" | "maxLength" | "pattern" | "format">,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.hasType("string")) {
+            throw new VError("Schema Builder Error: 'setStringConstraints' can only be used on a string schema")
+        }
+        return new SchemaBuilder({ ...self.schemaObject, ...constraints }, self.validationConfig) as any
+    }
+
+    /**
+     * Set numeric validation constraints (`multipleOf`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`).
+     * Constraints are shallow-merged onto the existing schema.
+     *
+     * Callable on a number or integer schema (including nullable variants).
+     */
+    setNumberConstraints(
+        this: [T] extends [number | null] ? SchemaBuilder<T> : never,
+        constraints: Pick<JSONSchema, "multipleOf" | "minimum" | "maximum" | "exclusiveMinimum" | "exclusiveMaximum">,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.hasType("number") && !self.hasType("integer")) {
+            throw new VError("Schema Builder Error: 'setNumberConstraints' can only be used on a number or integer schema")
+        }
+        return new SchemaBuilder({ ...self.schemaObject, ...constraints }, self.validationConfig) as any
+    }
+
+    /**
+     * Set array-specific validation constraints (`minItems`, `maxItems`, `uniqueItems`).
+     * Constraints are shallow-merged onto the existing schema.
+     *
+     * Callable on any array or tuple schema (including nullable variants).
+     */
+    setArrayConstraints(
+        this: [T] extends [readonly any[] | null] ? SchemaBuilder<T> : never,
+        constraints: Pick<JSONSchema, "minItems" | "maxItems" | "uniqueItems">,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isArraySchema) {
+            throw new VError("Schema Builder Error: 'setArrayConstraints' can only be used on an array schema")
+        }
+        return new SchemaBuilder({ ...self.schemaObject, ...constraints }, self.validationConfig) as any
+    }
+
+    /**
+     * Set a `contains` schema on this array, with optional `minContains` / `maxContains` bounds.
+     * Validation will accept the array when at least `minContains` (default `1`) and at most
+     * `maxContains` (default unbounded) of its items match `containsSchema`.
+     *
+     * `contains` does not narrow the item type, so the builder's `T` is preserved.
+     * Pass `null` for `containsSchema` to clear the `contains` / `minContains` / `maxContains` keywords.
+     */
+    setContains(
+        this: [T] extends [readonly any[] | null] ? SchemaBuilder<T> : never,
+        containsSchema: SchemaBuilder<any> | null,
+        options: { minContains?: number; maxContains?: number } = {},
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isArraySchema) {
+            throw new VError("Schema Builder Error: 'setContains' can only be used on an array schema")
+        }
+        const { contains: _c, minContains: _min, maxContains: _max, ...rest } = self.schemaObject
+        const next: JSONSchema = containsSchema
+            ? {
+                  ...rest,
+                  contains: cloneJSON(containsSchema.schemaObject),
+                  ...(options.minContains !== undefined ? { minContains: options.minContains } : {}),
+                  ...(options.maxContains !== undefined ? { maxContains: options.maxContains } : {}),
+              }
+            : rest
+        return new SchemaBuilder(next, self.validationConfig) as any
+    }
+
+    /**
+     * Set object-specific validation constraints (`minProperties`, `maxProperties`).
+     * Constraints are shallow-merged onto the existing schema.
+     *
+     * Callable on an object schema (including nullable variants). Arrays are excluded at the type level.
+     */
+    setObjectConstraints(
+        this: [T] extends [readonly any[]] ? never : [T] extends [object | null] ? SchemaBuilder<T> : never,
+        constraints: Pick<JSONSchema, "minProperties" | "maxProperties">,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isObjectSchema) {
+            throw new VError("Schema Builder Error: 'setObjectConstraints' can only be used on an object schema")
+        }
+        return new SchemaBuilder({ ...self.schemaObject, ...constraints }, self.validationConfig) as any
+    }
+
+    /**
+     * Constrain the property names of this object schema with a string schema.
+     * Useful for restricting keys to a pattern or format (e.g. UUID-shaped keys).
+     *
+     * Validation-only — the TypeScript type is preserved. Pass `null` to clear `propertyNames`.
+     */
+    setPropertyNames(
+        this: [T] extends [readonly any[]] ? never : [T] extends [object | null] ? SchemaBuilder<T> : never,
+        propertyNames: SchemaBuilder<string> | null,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isObjectSchema) {
+            throw new VError("Schema Builder Error: 'setPropertyNames' can only be used on an object schema")
+        }
+        const { propertyNames: _pn, ...rest } = self.schemaObject
+        const next: JSONSchema = propertyNames ? { ...rest, propertyNames: cloneJSON(propertyNames.schemaObject) } : rest
+        return new SchemaBuilder(next, self.validationConfig) as any
+    }
+
+    /**
+     * Add a `dependentRequired` entry: when `propertyName` is present, every name in `requiredNames`
+     * must also be present. Validation-only — the TypeScript type is preserved.
+     */
+    addDependentRequired<K extends keyof NonNullable<T>>(
+        this: [T] extends [readonly any[]] ? never : [T] extends [object | null] ? SchemaBuilder<T> : never,
+        propertyName: K,
+        requiredNames: readonly (keyof NonNullable<T>)[],
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isObjectSchema) {
+            throw new VError("Schema Builder Error: 'addDependentRequired' can only be used on an object schema")
+        }
+        const schemaObject = cloneRoot(self.schemaObject, { dependentRequired: {} })
+        schemaObject.dependentRequired![propertyName as string] = requiredNames.map((n) => n as string)
+        return new SchemaBuilder(schemaObject, self.validationConfig) as any
+    }
+
+    /**
+     * Add a `dependentSchemas` entry: when `propertyName` is present, the object must also validate
+     * against `schema`. Validation-only — the TypeScript type is preserved (the dependent schema is
+     * not merged into `T` because conditional structural narrowing is not generally expressible).
+     */
+    addDependentSchemas<K extends keyof NonNullable<T>>(
+        this: [T] extends [readonly any[]] ? never : [T] extends [object | null] ? SchemaBuilder<T> : never,
+        propertyName: K,
+        schema: SchemaBuilder<any>,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isObjectSchema) {
+            throw new VError("Schema Builder Error: 'addDependentSchemas' can only be used on an object schema")
+        }
+        const schemaObject = cloneRoot(self.schemaObject, { dependentSchemas: {} })
+        schemaObject.dependentSchemas![propertyName as string] = cloneJSON(schema.schemaObject)
+        return new SchemaBuilder(schemaObject, self.validationConfig) as any
+    }
+
+    /**
+     * Set `unevaluatedProperties` on this object schema. Typically used in combination with
+     * `allOf`/`anyOf`/`oneOf` to restrict properties not evaluated by any subschema.
+     *
+     * Accepts a `SchemaBuilder` (subschema all unevaluated properties must satisfy) or a boolean
+     * (`true` to allow any, `false` to disallow). Pass `null` to remove the keyword.
+     * Validation-only — the TypeScript type is preserved.
+     */
+    setUnevaluatedProperties(
+        this: [T] extends [readonly any[]] ? never : [T] extends [object | null] ? SchemaBuilder<T> : never,
+        unevaluated: SchemaBuilder<any> | boolean | null,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isObjectSchema) {
+            throw new VError("Schema Builder Error: 'setUnevaluatedProperties' can only be used on an object schema")
+        }
+        const { unevaluatedProperties: _up, ...rest } = self.schemaObject
+        const next: JSONSchema =
+            unevaluated === null
+                ? rest
+                : typeof unevaluated === "boolean"
+                  ? { ...rest, unevaluatedProperties: unevaluated }
+                  : { ...rest, unevaluatedProperties: cloneJSON(unevaluated.schemaObject) }
+        return new SchemaBuilder(next, self.validationConfig) as any
+    }
+
+    /**
+     * Attach an `if`/`then`/`else` constraint to this schema as a validation-only conditional.
+     * The TypeScript type is preserved — use `SchemaBuilder.ifThenElse` if you want type-level narrowing.
+     *
+     * Pass an object with `if` (required) plus optional `then`/`else` to set the trio; pass `null`
+     * to remove all three keywords. Omitted branches in the object are also removed from the schema.
+     */
+    setIfThenElse(branches: { if: SchemaBuilder<any>; then?: SchemaBuilder<any>; else?: SchemaBuilder<any> } | null): SchemaBuilder<{ [P in keyof T]: T[P] }> {
+        const { if: _if, then: _then, else: _else, ...rest } = this.schemaObject
+        if (branches === null) {
+            return new SchemaBuilder(rest, this.validationConfig) as any
+        }
+        const next: JSONSchema = {
+            ...rest,
+            if: cloneJSON(branches.if.schemaObject),
+            ...(branches.then ? { then: cloneJSON(branches.then.schemaObject) } : {}),
+            ...(branches.else ? { else: cloneJSON(branches.else.schemaObject) } : {}),
+        }
+        return new SchemaBuilder(next, this.validationConfig) as any
+    }
+
+    /**
+     * Set the content-related keywords (`contentMediaType`, `contentEncoding`, `contentSchema`) on a string schema.
+     * The three keywords are treated as a group — calling with `null` clears all three; calling with an object
+     * sets only the provided keys (omitted keys are removed from the previous content state).
+     *
+     * `contentSchema` describes the result of decoding the string content (e.g. parsing a base64-encoded JSON body)
+     * and must itself be a `SchemaBuilder`. Validation-only — the TypeScript type is preserved.
+     */
+    setContent(
+        this: [T] extends [string | null] ? SchemaBuilder<T> : never,
+        content: { mediaType?: string; encoding?: string; schema?: SchemaBuilder<any> } | null,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.hasType("string")) {
+            throw new VError("Schema Builder Error: 'setContent' can only be used on a string schema")
+        }
+        const { contentMediaType: _mt, contentEncoding: _en, contentSchema: _cs, ...rest } = self.schemaObject
+        if (content === null) {
+            return new SchemaBuilder(rest, self.validationConfig) as any
+        }
+        const next: JSONSchema = {
+            ...rest,
+            ...(content.mediaType !== undefined ? { contentMediaType: content.mediaType } : {}),
+            ...(content.encoding !== undefined ? { contentEncoding: content.encoding } : {}),
+            ...(content.schema ? { contentSchema: cloneJSON(content.schema.schemaObject) } : {}),
+        }
+        return new SchemaBuilder(next, self.validationConfig) as any
+    }
+
+    /**
+     * Set the `$id` identifier on this schema. Pass `null` to remove the keyword.
+     * Useful when emitting reusable schema documents (e.g. for OpenAPI components).
+     */
+    setId($id: string | null): SchemaBuilder<{ [P in keyof T]: T[P] }> {
+        const { $id: _, ...rest } = this.schemaObject
+        const next: JSONSchema = $id !== null ? { ...rest, $id } : rest
+        return new SchemaBuilder(next, this.validationConfig) as any
+    }
+
+    /**
+     * Set `unevaluatedItems` on this array schema. Typically used with `prefixItems`,
+     * `contains`, or composition keywords to restrict items not evaluated by any subschema.
+     *
+     * Accepts a `SchemaBuilder` (subschema all unevaluated items must satisfy) or a boolean
+     * (`true` to allow any, `false` to disallow). Pass `null` to remove the keyword.
+     * Validation-only — the TypeScript type is preserved.
+     */
+    setUnevaluatedItems(
+        this: [T] extends [readonly any[] | null] ? SchemaBuilder<T> : never,
+        unevaluated: SchemaBuilder<any> | boolean | null,
+    ): SchemaBuilder<T> {
+        const self = this as SchemaBuilder<T>
+        if (!self.isArraySchema) {
+            throw new VError("Schema Builder Error: 'setUnevaluatedItems' can only be used on an array schema")
+        }
+        const { unevaluatedItems: _ui, ...rest } = self.schemaObject
+        const next: JSONSchema =
+            unevaluated === null
+                ? rest
+                : typeof unevaluated === "boolean"
+                  ? { ...rest, unevaluatedItems: unevaluated }
+                  : { ...rest, unevaluatedItems: cloneJSON(unevaluated.schemaObject) }
+        return new SchemaBuilder(next, self.validationConfig) as any
     }
 
     /**
@@ -1181,12 +1467,83 @@ export class SchemaBuilder<T> {
             result = result ? `${prefix}${result}` : ""
             return result
         }
+        // Extract keywords that have dedicated instance setters into a chain string,
+        // and return the residual schema with those keys removed. Called once at the
+        // top of the method so every base-factory branch reuses the same residual.
+        const extractExtras = (rest: JSONSchema): { chain: string; residual: JSONSchema } => {
+            const residual: JSONSchema = { ...rest }
+            const parts: string[] = []
+            const codeFor = (s: JSONSchema | boolean | undefined) => getSchemaBuilder(s)._toTypescript(false, customizeOutput)
+            if (residual.$id !== undefined) {
+                parts.push(`.setId(${JSON.stringify(residual.$id)})`)
+                delete residual.$id
+            }
+            if (residual.if !== undefined) {
+                const entries = [`if: ${codeFor(residual.if)}`]
+                if (residual.then !== undefined) entries.push(`then: ${codeFor(residual.then)}`)
+                if (residual.else !== undefined) entries.push(`else: ${codeFor(residual.else)}`)
+                parts.push(`.setIfThenElse({ ${entries.join(", ")} })`)
+                delete residual.if
+                delete residual.then
+                delete residual.else
+            }
+            if (residual.contains !== undefined) {
+                const opts: string[] = []
+                if (residual.minContains !== undefined) opts.push(`minContains: ${residual.minContains}`)
+                if (residual.maxContains !== undefined) opts.push(`maxContains: ${residual.maxContains}`)
+                const optsArg = opts.length ? `, { ${opts.join(", ")} }` : ""
+                parts.push(`.setContains(${codeFor(residual.contains)}${optsArg})`)
+                delete residual.contains
+                delete residual.minContains
+                delete residual.maxContains
+            }
+            if (residual.unevaluatedItems !== undefined) {
+                const v = residual.unevaluatedItems
+                parts.push(`.setUnevaluatedItems(${typeof v === "boolean" ? String(v) : codeFor(v)})`)
+                delete residual.unevaluatedItems
+            }
+            if (residual.unevaluatedProperties !== undefined) {
+                const v = residual.unevaluatedProperties
+                parts.push(`.setUnevaluatedProperties(${typeof v === "boolean" ? String(v) : codeFor(v)})`)
+                delete residual.unevaluatedProperties
+            }
+            if (residual.propertyNames !== undefined && typeof residual.propertyNames !== "boolean") {
+                parts.push(`.setPropertyNames(${codeFor(residual.propertyNames)})`)
+                delete residual.propertyNames
+            }
+            if (residual.dependentRequired !== undefined) {
+                for (const key of Object.keys(residual.dependentRequired)) {
+                    parts.push(`.addDependentRequired(${JSON.stringify(key)}, ${JSON.stringify(residual.dependentRequired[key])} as const)`)
+                }
+                delete residual.dependentRequired
+            }
+            if (residual.dependentSchemas !== undefined) {
+                for (const key of Object.keys(residual.dependentSchemas)) {
+                    parts.push(`.addDependentSchemas(${JSON.stringify(key)}, ${codeFor(residual.dependentSchemas[key])})`)
+                }
+                delete residual.dependentSchemas
+            }
+            if (residual.contentMediaType !== undefined || residual.contentEncoding !== undefined || residual.contentSchema !== undefined) {
+                const entries: string[] = []
+                if (residual.contentMediaType !== undefined) entries.push(`mediaType: ${JSON.stringify(residual.contentMediaType)}`)
+                if (residual.contentEncoding !== undefined) entries.push(`encoding: ${JSON.stringify(residual.contentEncoding)}`)
+                if (residual.contentSchema !== undefined && typeof residual.contentSchema !== "boolean") {
+                    entries.push(`schema: ${codeFor(residual.contentSchema)}`)
+                }
+                parts.push(`.setContent({ ${entries.join(", ")} })`)
+                delete residual.contentMediaType
+                delete residual.contentEncoding
+                delete residual.contentSchema
+            }
+            return { chain: parts.join(""), residual }
+        }
         const o = customizeOutput ?? ((output: string, s: SchemaBuilder<any>) => output)
         if (!processNamedSchema && this.schemaObject.title) {
             // Named schema should be handled separately. Generate its variable name instead of its schema code.
             return o(`${_.lowerFirst(this.schemaObject.title)}Schema`, this)
         }
-        let { type, ...restOfSchemaObject } = this.schemaObject
+        let { type, ...rest0 } = this.schemaObject
+        const { chain: extrasChain, residual: restOfSchemaObject } = extractExtras(rest0)
         if (type) {
             let isNull = false
             if (restOfSchemaObject.enum) {
@@ -1195,7 +1552,7 @@ export class SchemaBuilder<T> {
             }
             if (Array.isArray(type)) {
                 if (type.length === 0) {
-                    return o(`SB.neverSchema(${optionalStringify(restOfSchemaObject)})`, this)
+                    return o(`SB.neverSchema(${optionalStringify(restOfSchemaObject)})${extrasChain}`, this)
                 }
                 if (type.length === 1) {
                     type = type[0]
@@ -1211,9 +1568,9 @@ export class SchemaBuilder<T> {
                     case "boolean":
                     case "integer":
                     case "number":
-                        return o(`SB.${type}Schema(${optionalStringify(restOfSchemaObject, isNull)}${isNull ? ", true" : ""})`, this)
+                        return o(`SB.${type}Schema(${optionalStringify(restOfSchemaObject, isNull)}${isNull ? ", true" : ""})${extrasChain}`, this)
                     case "null":
-                        return o(`SB.nullSchema(${optionalStringify(restOfSchemaObject)})`, this)
+                        return o(`SB.nullSchema(${optionalStringify(restOfSchemaObject)})${extrasChain}`, this)
                     case "array":
                         const { items, prefixItems, ...restOfSchemaObjectForArray } = restOfSchemaObject
                         if (prefixItems) {
@@ -1222,9 +1579,7 @@ export class SchemaBuilder<T> {
                             const { minItems, ...restOfSchemaObjectForTuple } = restOfSchemaObjectForArray
                             const keepMinItems = minItems !== undefined && minItems !== prefixItems.length
                             const jsonOptions: any = keepMinItems ? { ...restOfSchemaObjectForTuple, minItems } : restOfSchemaObjectForTuple
-                            const tupleParts = prefixItems
-                                .map((p) => getSchemaBuilder(p)._toTypescript(false, customizeOutput))
-                                .join(", ")
+                            const tupleParts = prefixItems.map((p) => getSchemaBuilder(p)._toTypescript(false, customizeOutput)).join(", ")
                             // When `items` is a schema (not `false`), it represents the tuple's rest element.
                             // Emit it as the `rest:` entry of the options object so the inferred TS tuple
                             // type is `[..., ...R[]]` rather than a closed tuple.
@@ -1237,14 +1592,14 @@ export class SchemaBuilder<T> {
                             } else {
                                 optionsArg = optionalStringify(jsonOptions, isNull, ", ")
                             }
-                            return o(`SB.tupleSchema([${tupleParts}]${optionsArg}${isNull ? ", true" : ""})`, this)
+                            return o(`SB.tupleSchema([${tupleParts}]${optionsArg}${isNull ? ", true" : ""})${extrasChain}`, this)
                         }
                         return o(
                             `SB.arraySchema(${getSchemaBuilder(items)._toTypescript(false, customizeOutput)}${optionalStringify(
                                 restOfSchemaObjectForArray,
                                 isNull,
                                 ", ",
-                            )}${isNull ? ", true" : ""})`,
+                            )}${isNull ? ", true" : ""})${extrasChain}`,
                             this,
                         )
                     case "object":
@@ -1261,28 +1616,28 @@ export class SchemaBuilder<T> {
                                           additionalProperties === true ? "" : getSchemaBuilder(additionalProperties)._toTypescript(false, customizeOutput)
                                       })`
                                     : ""
-                            }`,
+                            }${extrasChain}`,
                             this,
                         )
                 }
             }
         } else if (restOfSchemaObject.allOf) {
             return o(
-                `SB.allOf(${restOfSchemaObject.allOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})`,
+                `SB.allOf(${restOfSchemaObject.allOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})${extrasChain}`,
                 this,
             )
         } else if (restOfSchemaObject.oneOf) {
             return o(
-                `SB.oneOf(${restOfSchemaObject.oneOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})`,
+                `SB.oneOf(${restOfSchemaObject.oneOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})${extrasChain}`,
                 this,
             )
         } else if (restOfSchemaObject.anyOf) {
             return o(
-                `SB.anyOf(${restOfSchemaObject.anyOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})`,
+                `SB.anyOf(${restOfSchemaObject.anyOf.map((schemaObject) => getSchemaBuilder(schemaObject)._toTypescript(false, customizeOutput)).join(", ")})${extrasChain}`,
                 this,
             )
         } else if (restOfSchemaObject.not) {
-            return o(`SB.not(${getSchemaBuilder(restOfSchemaObject.not)._toTypescript(false, customizeOutput)})`, this)
+            return o(`SB.not(${getSchemaBuilder(restOfSchemaObject.not)._toTypescript(false, customizeOutput)})${extrasChain}`, this)
         }
         // default to a literal schema for unhandled cases
         return o(`SB.fromJsonSchema(${JSON.stringify(this.schemaObject)} as const)`, this)
@@ -1307,7 +1662,17 @@ function validationError(ajvErrorsText: string, errorsDetails: any) {
     return new VError(opt, `Invalid parameters: ${ajvErrorsText}`)
 }
 
-export type JSONSchemaCommonProperties = "title" | "description" | "default" | "examples" | "readOnly" | "writeOnly"
+export type JSONSchemaCommonProperties =
+    | "title"
+    | "description"
+    | "default"
+    | "examples"
+    | "readOnly"
+    | "writeOnly"
+    | "deprecated"
+    | "$id"
+    | "$anchor"
+    | "$dynamicAnchor"
 
 export type JSONSchemaArraySpecificProperties = "maxItems" | "minItems" | "uniqueItems"
 

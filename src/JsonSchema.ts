@@ -4,8 +4,12 @@ export interface JSONSchemaValueArray extends Array<JSONSchemaValue> {}
 
 export interface JSONSchema {
     $id?: string
+    $anchor?: string
+    $dynamicAnchor?: string
     $ref?: string
+    $dynamicRef?: string
     $schema?: string
+    $comment?: string
     $defs?: {
         [key: string]: JSONSchema | boolean
     }
@@ -74,5 +78,6 @@ export interface JSONSchema {
     default?: JSONSchemaValue
     readOnly?: boolean
     writeOnly?: boolean
-    examples?: JSONSchemaValue
+    examples?: JSONSchemaValue[]
+    deprecated?: boolean
 }
