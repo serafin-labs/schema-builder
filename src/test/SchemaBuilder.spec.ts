@@ -1055,6 +1055,38 @@ describe("Schema Builder", function () {
             expect(() => schema.validate(badData)).to.throw("Invalid parameters: data/conditionalObject must have required property 'foo'")
         })
 
+        it("oneOfDiscriminated builds a tagged union with OpenAPI discriminator", function () {
+            const cat = SB.objectSchema({}, { meow: SB.booleanSchema() })
+            const dog = SB.objectSchema({}, { bark: SB.stringSchema() })
+            const pet = SB.oneOfDiscriminated("kind", { cat, dog })
+
+            const oneOf = pet.schema.oneOf as JSONSchema[]
+            expect(oneOf).to.have.lengthOf(2)
+            expect((oneOf[0].properties as any).kind).to.eql({ const: "cat" })
+            expect((oneOf[1].properties as any).kind).to.eql({ const: "dog" })
+            expect(oneOf[0].required).to.include("kind")
+            expect(oneOf[1].required).to.include("kind")
+            expect(pet.schema.discriminator).to.eql({ propertyName: "kind" })
+
+            type Pet = typeof pet.T
+            const aCat: Pet = { kind: "cat", meow: true }
+            const aDog: Pet = { kind: "dog", bark: "woof" }
+            expect(() => pet.validate(aCat)).to.not.throw()
+            expect(() => pet.validate(aDog)).to.not.throw()
+            expect(() => pet.validate({ kind: "cat", bark: "woof" } as any)).to.throw()
+            expect(() => pet.validate({ kind: "dog", meow: true } as any)).to.throw()
+
+            if (aCat.kind === "cat") {
+                expect(aCat.meow).to.be.a("boolean")
+            }
+        })
+
+        it("oneOfDiscriminated rejects non-object variants", function () {
+            expect(() => SB.oneOfDiscriminated("kind", { foo: SB.stringSchema() as any })).to.throw(
+                "'oneOfDiscriminated' variant 'foo' is not an object schema",
+            )
+        })
+
         it("playground with different typing of enumSchema", function () {
             enum TestEnum {
                 foo = "foo",

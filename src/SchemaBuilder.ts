@@ -333,6 +333,44 @@ export class SchemaBuilder<T> {
     }
 
     /**
+     * Build a `oneOf` over object variants tagged by a literal discriminator property.
+     *
+     * For each `[tag, builder]` entry, the resulting variant schema has `propertyName` injected as a
+     * `const: tag` and added to `required`. The combined schema carries an OpenAPI `discriminator`
+     * keyword (`{ propertyName, mapping? }`). The TypeScript type is a discriminated union, narrowable on `propertyName`.
+     *
+     * Each variant must be an object schema; passing a non-object schema throws.
+     */
+    static oneOfDiscriminated<P extends string, M extends { [tag: string]: SchemaBuilder<object> }>(
+        propertyName: P,
+        variants: M,
+    ): SchemaBuilder<
+        {
+            [K in keyof M & string]: M[K] extends SchemaBuilder<infer V> ? V & { [Q in P]: K } : never
+        }[keyof M & string]
+    > {
+        const oneOfSchemas: JSONSchema[] = []
+        for (const tag of Object.keys(variants)) {
+            const builder = variants[tag]
+            if (!builder.isObjectSchema) {
+                throw new VError(`Schema Builder Error: 'oneOfDiscriminated' variant '${tag}' is not an object schema`)
+            }
+            const variantSchema = cloneJSON(builder.schemaObject)
+            variantSchema.properties = {
+                ...(variantSchema.properties ?? {}),
+                [propertyName]: { const: tag },
+            }
+            variantSchema.required = [...(variantSchema.required ?? []), propertyName]
+            oneOfSchemas.push(variantSchema)
+        }
+        const discriminator: NonNullable<JSONSchema["discriminator"]> = { propertyName }
+        return new SchemaBuilder<any>({
+            oneOf: oneOfSchemas,
+            discriminator,
+        })
+    }
+
+    /**
      * Return a schema builder which validate all the provided schemas. "allOf" as described by JSON Schema specifications.
      */
     static allOf<S extends SchemaBuilder<any>[]>(...schemaBuilders: S): SchemaBuilder<AllOf<S>> {

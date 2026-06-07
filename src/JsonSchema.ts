@@ -2,6 +2,9 @@ export type JSONSchemaTypeName = "string" | "number" | "integer" | "boolean" | "
 export type JSONSchemaValue = JSONSchemaValueArray[] | boolean | number | null | object | string
 export interface JSONSchemaValueArray extends Array<JSONSchemaValue> {}
 
+/**
+ * JSON Schema 2020-12 interface, with OpenAPI 3.1 extensions
+ */
 export interface JSONSchema {
     $id?: string
     $anchor?: string
@@ -80,4 +83,18 @@ export interface JSONSchema {
     writeOnly?: boolean
     examples?: JSONSchemaValue[]
     deprecated?: boolean
+
+    // ---- OpenAPI 3.1 only (not part of JSON Schema 2020-12) ----
+
+    /** OpenAPI only — variant selector used with `oneOf`/`anyOf`/`allOf`. */
+    discriminator?: {
+        propertyName: string
+        mapping?: { [key: string]: string }
+    }
+
+    /** OpenAPI only — link to external documentation for this schema. */
+    externalDocs?: {
+        url: string
+        description?: string
+    }
 }
