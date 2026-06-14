@@ -73,6 +73,7 @@
         "build:cjs": "tsc --project tsconfig.cjs.json",
         "build:esm": "tsc",
         "fix": "echo '{ \"type\": \"module\" }' > lib/esm/package.json && echo '{ \"type\": \"commonjs\" }' > lib/cjs/package.json",
-        "prepublishOnly": "npm install && rm -rf ./lib && npm run build && npm test"
+        "check:exports": "node scripts/check-build-exports.mjs",
+        "prepublishOnly": "npm install && rm -rf ./lib && npm run build && npm test && npm run check:exports"
     }
 }
