@@ -126,6 +126,56 @@ describe("Schema Builder", function () {
         expect(() => schemaBuilder.validate({ pair: [1, "a"] } as any)).to.throw()
     })
 
+    it("should create a multi-type schema and validate data", function () {
+        const schemaBuilder = SB.typesSchema(["number", "string"])
+        const value: number | string = schemaBuilder.T
+        expect(schemaBuilder.schema.type).to.eql(["number", "string"])
+        expect(() => schemaBuilder.validate(1 as any)).to.not.throw()
+        expect(() => schemaBuilder.validate("a" as any)).to.not.throw()
+        expect(() => schemaBuilder.validate(true as any)).to.throw()
+        expect(() => schemaBuilder.validate(null as any)).to.throw()
+    })
+
+    it("should collapse a single-element multi-type schema to a plain type", function () {
+        const schemaBuilder = SB.typesSchema(["string"])
+        expect(schemaBuilder.schema.type).to.equal("string")
+    })
+
+    it("should de-duplicate repeated types in a multi-type schema", function () {
+        const schemaBuilder = SB.typesSchema(["number", "number", "string"] as const)
+        expect(schemaBuilder.schema.type).to.eql(["number", "string"])
+    })
+
+    it("should create a nullable multi-type schema", function () {
+        const schemaBuilder = SB.typesSchema(["number", "string"], {}, true)
+        const value: number | string | null = schemaBuilder.T
+        expect(schemaBuilder.schema.type).to.eql(["number", "string", "null"])
+        expect(() => schemaBuilder.validate(null as any)).to.not.throw()
+        expect(() => schemaBuilder.validate(1 as any)).to.not.throw()
+    })
+
+    it("should carry shared constraints on a multi-type schema, applied per relevant type", function () {
+        const schemaBuilder = SB.typesSchema(["number", "string"], { minLength: 3, minimum: 0 })
+        // minLength applies to strings only
+        expect(() => schemaBuilder.validate("abc" as any)).to.not.throw()
+        expect(() => schemaBuilder.validate("ab" as any)).to.throw()
+        // minimum applies to numbers only
+        expect(() => schemaBuilder.validate(5 as any)).to.not.throw()
+        expect(() => schemaBuilder.validate(-1 as any)).to.throw()
+    })
+
+    it("should addTypes on an object schema and validate data", function () {
+        const schemaBuilder = SB.emptySchema()
+            .addTypes("id", ["number", "string"])
+            .addTypes("nick", ["string", "null"], {}, false)
+        const value: { id: number | string; nick?: string | null } = schemaBuilder.T
+        expect(() => schemaBuilder.validate({ id: 1 })).to.not.throw()
+        expect(() => schemaBuilder.validate({ id: "x", nick: "n" })).to.not.throw()
+        expect(() => schemaBuilder.validate({ id: "x", nick: null })).to.not.throw()
+        expect(() => schemaBuilder.validate({} as any)).to.throw()
+        expect(() => schemaBuilder.validate({ id: true } as any)).to.throw()
+    })
+
     it("should add multiple properties at the same time and validate data", function () {
         let schemaBuilder = SB.emptySchema().addProperties({
             s1: SB.stringSchema(),
@@ -1715,6 +1765,18 @@ describe("Schema Builder", function () {
             expect(s.toTypescript()[1]).to.equal("SB.not(SB.stringSchema())")
         })
 
+        it("emits SB.typesSchema for a multi-type schema", function () {
+            expect(SB.typesSchema(["number", "string"]).toTypescript()[1]).to.equal('SB.typesSchema(["number", "string"])')
+        })
+
+        it("emits SB.typesSchema with the nullable flag for a multi-type schema including null", function () {
+            expect(SB.typesSchema(["number", "string"], {}, true).toTypescript()[1]).to.equal('SB.typesSchema(["number", "string"], {}, true)')
+        })
+
+        it("emits SB.typesSchema with shared constraints for a multi-type schema", function () {
+            expect(SB.typesSchema(["number", "string"], { minLength: 3 }).toTypescript()[1]).to.equal('SB.typesSchema(["number", "string"], {"minLength":3})')
+        })
+
         it("emits SB.nullSchema for a null-typed schema", function () {
             expect(SB.nullSchema().toTypescript()[1]).to.equal("SB.nullSchema()")
         })
@@ -1792,7 +1854,8 @@ describe("Schema Builder", function () {
         })
 
         it("falls back to SB.fromJsonSchema for unhandled shapes", function () {
-            const s = SB.fromJsonSchema({ type: ["string", "number"] } as const)
+            // A multi-type array mixing a non-primitive (object) is not expressible via typesSchema.
+            const s = SB.fromJsonSchema({ type: ["object", "string"] } as const)
             const code = s.toTypescript()[1]
             expect(code.startsWith("SB.fromJsonSchema(")).to.equal(true)
         })

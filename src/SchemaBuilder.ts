@@ -3,7 +3,7 @@ import type { Options, ValidateFunction } from "ajv"
 import VError from "verror"
 import _ from "lodash"
 import addFormats from "ajv-formats"
-import { JsonSchemaType } from "./JsonSchemaType.js"
+import { JsonSchemaType, JsonSchemaTypesUnion } from "./JsonSchemaType.js"
 import {
     Combine,
     DeepPartial,
@@ -320,6 +320,36 @@ export class SchemaBuilder<T> {
             prefixItems: items.map((item) => cloneJSON(item.schemaObject)),
             items: rest ? cloneJSON(rest.schemaObject) : false,
             minItems: items.length,
+        }
+        return new SchemaBuilder(s) as any
+    }
+
+    /**
+     * Create a schema that accepts any one of several primitive types using a JSON Schema `type` array
+     * (e.g. `type: ["number", "string"]`), yielding a TypeScript union (`number | string`).
+     *
+     * This is the helper for the *simple* multi-type case: the `type` tags share a single keyword bag,
+     * and JSON Schema applies each keyword only to the instances it is relevant for (`minLength` is
+     * ignored for numbers, `minimum` for strings, ...). When each branch needs its own disjoint
+     * constraints (e.g. a string of length ≥ 3 OR a number ≥ 0), use `anyOf`/`oneOf` instead.
+     *
+     * Only primitive types (`string`, `number`, `integer`, `boolean`, `null`) are accepted; mixing
+     * `object`/`array` into a `type` array makes `properties`/`items` apply ambiguously across branches.
+     * Duplicate type names are de-duplicated. Passing `nullable` adds `"null"` to the type array.
+     */
+    static typesSchema<L extends readonly JSONSchemaPrimitiveTypeName[], N extends boolean = false>(
+        types: readonly [...L],
+        schema: Pick<JSONSchema, JSONSchemaMultiTypeProperties> = {},
+        nullable?: N,
+    ): N extends true ? SchemaBuilder<JsonSchemaTypesUnion<L> | null> : SchemaBuilder<JsonSchemaTypesUnion<L>> {
+        const typeSet = new Set<JSONSchemaTypeName>(types)
+        if (nullable) {
+            typeSet.add("null")
+        }
+        const typeArray = [...typeSet]
+        let s: JSONSchema = {
+            ...cloneJSON(schema),
+            type: typeArray.length === 1 ? typeArray[0] : typeArray,
         }
         return new SchemaBuilder(s) as any
     }
@@ -725,6 +755,20 @@ export class SchemaBuilder<T> {
         [P in keyof Combine<T, TupleOfWithRest<S, R>, K, REQUIRED, N>]: Combine<T, TupleOfWithRest<S, R>, K, REQUIRED, N>[P]
     }> {
         return this.addProperty(propertyName, SchemaBuilder.tupleSchema(items, schema, nullable), isRequired) as any
+    }
+
+    /**
+     * Add a multi-type property to the schema using a JSON Schema `type` array (e.g. `type: ["number", "string"]`),
+     * yielding a TypeScript union for the property. See `typesSchema` for the semantics and limitations.
+     */
+    addTypes<L extends readonly JSONSchemaPrimitiveTypeName[], K extends keyof any, REQUIRED extends boolean = true, N extends boolean = false>(
+        propertyName: K,
+        types: readonly [...L],
+        schema: Pick<JSONSchema, JSONSchemaMultiTypeProperties> = {},
+        isRequired?: REQUIRED,
+        nullable?: N,
+    ): SchemaBuilder<{ [P in keyof Combine<T, JsonSchemaTypesUnion<L>, K, REQUIRED, N>]: Combine<T, JsonSchemaTypesUnion<L>, K, REQUIRED, N>[P] }> {
+        return this.addProperty(propertyName, SchemaBuilder.typesSchema(types, schema, nullable), isRequired) as any
     }
 
     /**
@@ -1533,5 +1577,17 @@ export type JSONSchemaBooleanProperties = JSONSchemaCommonProperties
 export type JSONSchemaObjectProperties = JSONSchemaCommonProperties | "maxProperties" | "minProperties"
 
 export type JSONSchemaGeneralProperties = JSONSchemaCommonProperties
+
+/**
+ * Primitive JSON Schema type names accepted by `typesSchema` / `addTypes`.
+ * `object` and `array` are intentionally excluded — see `typesSchema`.
+ */
+export type JSONSchemaPrimitiveTypeName = "string" | "number" | "integer" | "boolean" | "null"
+
+/**
+ * Keywords allowed on a multi-type schema: the union of the per-type constraint groups, since each
+ * keyword applies only to the instances it is relevant for.
+ */
+export type JSONSchemaMultiTypeProperties = JSONSchemaStringProperties | JSONSchemaNumberProperties
 
 export const SB = SchemaBuilder // shorter alias

@@ -124,6 +124,23 @@ export function schemaToTypescript(builder: SchemaBuilder<any>, processNamedSche
                 isNull = true
             }
         }
+        if (Array.isArray(type)) {
+            // Multi-type primitive schema -> SB.typesSchema([...]). A trailing "null" is emitted as the
+            // nullable flag rather than as an explicit type entry, mirroring typesSchema's own behaviour.
+            let typeNames = type as string[]
+            if (typeNames.includes("null")) {
+                isNull = true
+                typeNames = typeNames.filter((t) => t !== "null")
+            }
+            const primitiveTypes = new Set(["string", "number", "integer", "boolean"])
+            if (typeNames.length >= 1 && typeNames.every((t) => primitiveTypes.has(t))) {
+                const typesLiteral = `[${typeNames.map((t) => `"${t}"`).join(", ")}]`
+                return o(
+                    `SB.typesSchema(${typesLiteral}${optionalStringify(restOfSchemaObject, isNull, ", ")}${isNull ? ", true" : ""})${extrasChain}`,
+                    builder,
+                )
+            }
+        }
         if (!Array.isArray(type)) {
             switch (type) {
                 case "string":

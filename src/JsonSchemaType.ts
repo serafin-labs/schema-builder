@@ -31,6 +31,12 @@ export type JsonSchemaSimpleTypes<TYPE> = TYPE extends "integer" | "number"
     : never
 
 /**
+ * Map an array of primitive JSON Schema type names to the union of their TypeScript types.
+ * e.g. ["number", "string"] => number | string
+ */
+export type JsonSchemaTypesUnion<L> = L extends readonly (infer TYPE)[] ? JsonSchemaSimpleTypes<TYPE> : never
+
+/**
  * Type of a json object
  */
 export type JsonSchemaObjectType<PROPERTIES, REQUIRED, AP> = AP extends false

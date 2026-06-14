@@ -182,6 +182,18 @@ This section will focus on advanced transformation methods and how to use them. 
 
 When you start using one of those in a `SchemaBuilder`, most of the transformation methods won't work anymore. It's because they expect the schema to contains only `properties`.
 
+### typesSchema (multi-type primitives)
+
+For the common case of "this value is one of several primitive types", you don't need `anyOf`/`oneOf`. `typesSchema` emits a JSON Schema `type` array (e.g. `type: ["number", "string"]`) and infers the corresponding TypeScript union:
+
+```typescript
+SchemaBuilder.typesSchema(["number", "string"]) // SchemaBuilder<number | string>
+SchemaBuilder.typesSchema(["number", "string"], {}, true) // SchemaBuilder<number | string | null>
+SchemaBuilder.emptySchema().addTypes("id", ["number", "string"]) // adds an `id: number | string` property
+```
+
+The `type` tags share a single keyword bag; JSON Schema applies each keyword only to the instances it is relevant for (`minLength` is ignored for numbers, `minimum` for strings). Use `anyOf`/`oneOf` instead when each branch needs its own disjoint constraints (e.g. a string of length ≥ 3 _or_ a number ≥ 0). Only primitive types (`string`, `number`, `integer`, `boolean`, `null`) are accepted.
+
 ### renameProperty
 
 `renameProperty` allows you to change the name of property without affecting its schema.
