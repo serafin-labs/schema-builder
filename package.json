@@ -18,7 +18,10 @@
             }
         }
     },
-    "files": ["lib", "src"],
+    "files": [
+        "lib",
+        "src"
+    ],
     "contributors": [
         {
             "name": "Sébastien de Saint Florent"
@@ -38,26 +41,26 @@
         "url": "https://github.com/serafin-labs/schema-builder"
     },
     "dependencies": {
-        "ajv": "^8.13.0",
+        "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
-        "lodash": "^4.17.21",
+        "lodash": "^4.18.1",
         "verror": "^1.10.1"
     },
     "devDependencies": {
         "@istanbuljs/nyc-config-typescript": "^1.0.2",
-        "@types/chai": "^4.3.16",
-        "@types/lodash": "^4.17.1",
+        "@types/chai": "^4.3.20",
+        "@types/lodash": "^4.17.24",
         "@types/mocha": "^10.0.6",
-        "@types/node": "^20.12.11",
-        "@types/verror": "^1.10.10",
-        "chai": "^5.1.1",
-        "concurrently": "^8.2.2",
-        "mocha": "^10.4.0",
+        "@types/node": "^20.19.43",
+        "@types/verror": "^1.10.11",
+        "chai": "^6.2.2",
+        "concurrently": "^10.0.3",
+        "mocha": "^11.7.6",
         "nyc": "^15.1.0",
         "ts-lint": "^4.5.1",
         "tslint-config-airbnb": "^5.11.2",
-        "tsx": "^4.10.2",
-        "typescript": "^5.4.5"
+        "tsx": "^4.22.4",
+        "typescript": "^6.0.3"
     },
     "scripts": {
         "test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --recursive ./src/test/**/*.spec.ts",

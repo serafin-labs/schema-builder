@@ -2,6 +2,7 @@
     "include": ["src"],
     "exclude": ["node_modules", "**/*.spec.ts"],
     "compilerOptions": {
+        "rootDir": "src",
         "incremental": true,
         "sourceMap": true,
         "declaration": true,
