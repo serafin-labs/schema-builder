@@ -1,397 +1,62 @@
-<p align="center"><img src="https://serafin-labs.github.io/images/logo-serafin-with-text-1080.png" width="300"/></p>
+<p align="center"><img src="./docs/public/logo.png" width="300"/></p>
 
-Serafin Schema Builder is a library that ease the creation of a JSON Schema and its associated Typescript type.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@serafin/schema-builder"><img src="https://img.shields.io/npm/v/@serafin/schema-builder.svg" alt="npm version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/@serafin/schema-builder.svg" alt="license"></a>
+</p>
+
+Serafin Schema Builder is a TypeScript library that lets you build a **JSON Schema and its matching TypeScript type at the same time** — from a single definition. No more keeping a schema and an interface in sync by hand.
 
 ## Installation
 
-```
+```sh
 npm i @serafin/schema-builder
 ```
 
-## Why Schema Builder?
-
-JSON schema is the base of Open API so it's really important for Serafin framework.
-JSON Schema is powerful but it is also verbose.
-
-On top of a JSON schema, you also have to create the Typescript interface that it represents. If you take in account other schemas and interfaces you have to define (one for the post body, one for the patch body, one for get query parameters, etc.), it starts to be problematic.
-
-Schema builder is here to save you from all this tedious work!
-
-To summarize, this library allows you to programmatically create a JSON Schema and its associated typescript type **at the same time**.
-
 ## A quick example
 
-Let's create simple User and Task schemas.
-
 ```typescript
-// Schema for the Task
-let taskSchema = SB.objectSchema(
+import { SchemaBuilder } from "@serafin/schema-builder"
+
+const userSchema = SchemaBuilder.objectSchema(
+    { title: "User" },
     {
-        title: "Task",
-    },
-    {
-        name: SB.stringSchema(),
-        progress: SB.numberSchema(),
-        isCompleted: [SB.booleanSchema(), undefined],
+        id: SchemaBuilder.stringSchema({ pattern: "\\w" }),
+        firstName: SchemaBuilder.stringSchema(),
+        role: SchemaBuilder.enumSchema(["admin", "user"]),
+        email: SchemaBuilder.stringSchema({ format: "email" }),
+        age: [SchemaBuilder.integerSchema(), undefined], // optional
     },
 )
 
-// Schema for the User
-let userSchema = SB.objectSchema(
-    {
-        title: "User",
-    },
-    {
-        id: SB.stringSchema({ pattern: "\\w" }),
-        firstName: SB.stringSchema(),
-        lastName: SB.stringSchema(),
-        role: SB.enumSchema(["admin", "user"]),
-        email: SB.stringSchema({ format: "email" }),
-        tags: SB.arraySchema(SB.stringSchema(), { minItems: 1 }),
-        age: [SB.integerSchema(), undefined],
-        friendsIds: [SB.arraySchema(SB.stringSchema()), undefined],
-        tasks: SB.arraySchema(taskSchema),
-    },
-)
+// A JSON Schema, available at runtime:
+userSchema.schema
 
-// References to generated interfaces
-type Task = typeof taskSchema.T
+// The matching TypeScript type, inferred at compile time:
 type User = typeof userSchema.T
+
+// Validate data against the schema (uses Ajv):
+userSchema.validate({ id: "abc", firstName: "John", role: "admin", email: "john@example.com" })
 ```
 
-With the code above, we have created two JSON schemas. You can access them with `.schema`. `userSchema.schema` for example contains :
-
-```json
-{
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-        "id": {
-            "pattern": "\\w",
-            "type": "string"
-        },
-        "firstName": {
-            "type": "string"
-        },
-        "lastName": {
-            "type": "string"
-        },
-        "role": {
-            "type": "string",
-            "enum": ["admin", "user"]
-        },
-        "email": {
-            "format": "email",
-            "type": "string"
-        },
-        "tags": {
-            "minItems": 1,
-            "type": "array",
-            "items": {
-                "type": "string"
-            }
-        },
-        "age": {
-            "type": "integer"
-        },
-        "tasks": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "progress": {
-                        "type": "number"
-                    },
-                    "isCompleted": {
-                        "type": "boolean"
-                    }
-                },
-                "required": ["name", "progress"]
-            }
-        }
-    },
-    "required": ["id", "firstName", "lastName", "role", "email", "tags", "tasks"]
-}
-```
-
-Thanks to the power of type operations in Typescript, we also have created two interfaces. We can create an explicit reference to it using the `typeof` keyword.
-
-`type User` is equivalent to the following :
+From that single source you can derive every related shape without repeating yourself — a patch body, query params, a public projection, and more:
 
 ```typescript
-type User = {
-    id: string
-    firstName: string
-    lastName: string
-    role: "admin" | "user"
-    email: string
-    tags: string[]
-    age?: number
-    tasks: {
-        name: string
-        progress: number
-        isCompleted?: boolean
-    }[]
-}
-```
-
-We want also to have an alternative schema for the user when we send a patch request. Let's modify the initial schema:
-
-```typescript
-let userPatchSchema = userSchema.pickProperties(["firstName", "lastName", "email", "age", "tags"]).toOptionals()
+const userPatchSchema = userSchema.pickProperties(["firstName", "email", "age"]).toOptionals()
 
 type UserPatch = typeof userPatchSchema.T
 ```
 
-`type UserPatch` is equivalent to the following :
+## Documentation
 
-```typescript
-type UserPatch = {
-    firstName?: string
-    lastName?: string
-    email?: string
-    tags?: string[]
-    age?: number
-}
-```
+📚 **Full documentation, with interactive type-aware examples, is available at [serafin-labs.github.io/schema-builder](https://serafin-labs.github.io/schema-builder/).**
 
-We can now use the `validate` method to validate data against our schema. The validation use `Ajv` with Json Schema draft #7 by default.
-
-```typescript
-userPatchSchema.validate({
-    firstName: "John",
-    age: 42,
-})
-```
-
-There's more! This was a simple example. This library provides also a lot of transformation operations that you can apply to your schemas.
-
-## Usage
-
-Since it's a Typescript library, intellisense and code comments provide already a good description of the methods.
-
-This section will focus on advanced transformation methods and how to use them. Refer to the code for the rest.
-
-### allOf, anyOf, oneOf, not
-
-`SchemaBuilder` contains static method to create `allOf`, `anyOf`, `oneOf` and `not`.
-
-When you start using one of those in a `SchemaBuilder`, most of the transformation methods won't work anymore. It's because they expect the schema to contains only `properties`.
-
-### typesSchema (multi-type primitives)
-
-For the common case of "this value is one of several primitive types", you don't need `anyOf`/`oneOf`. `typesSchema` emits a JSON Schema `type` array (e.g. `type: ["number", "string"]`) and infers the corresponding TypeScript union:
-
-```typescript
-SchemaBuilder.typesSchema(["number", "string"]) // SchemaBuilder<number | string>
-SchemaBuilder.typesSchema(["number", "string"], {}, true) // SchemaBuilder<number | string | null>
-SchemaBuilder.emptySchema().addTypes("id", ["number", "string"]) // adds an `id: number | string` property
-```
-
-The `type` tags share a single keyword bag; JSON Schema applies each keyword only to the instances it is relevant for (`minLength` is ignored for numbers, `minimum` for strings). Use `anyOf`/`oneOf` instead when each branch needs its own disjoint constraints (e.g. a string of length ≥ 3 _or_ a number ≥ 0). Only primitive types (`string`, `number`, `integer`, `boolean`, `null`) are accepted.
-
-### renameProperty
-
-`renameProperty` allows you to change the name of property without affecting its schema.
-
-```typescript
-let schema = SchemaBuilder.emptySchema().addString("prop1").renameProperty("prop1", "prop2")
-```
-
-### addAdditionalProperties
-
-You can set `additionalProperties` in your json schema using this method.
-
-```typescript
-// additionalProperties is set to true and an any index signature is added to the generic interface
-let schema = SchemaBuilder.emptySchema().addAdditionalProperties()
-
-// additionalProperties is set to a string json schema and a string index signature is added to the generic interface
-let schema2 = SchemaBuilder.emptySchema().addAdditionalProperties(SchemaBuilder.stringSchema())
-```
-
-**/!\\** Index signatures and type operations are not working well together. If you start using `additionalProperties` in a schema, most of the transformation methods will fail after that. Try to use `addAdditionalProperties` at the last step if possible
-
-### pickProperties & omitProperties
-
-You can use this two methods to take a subset of the properties of the schema.
-
-```typescript
-let schema = SchemaBuilder.emptySchema().addString("prop1").addBoolean("prop2")
-
-// pickedSchema only contains "prop1"
-let pickedSchema = schema.pickProperties(["prop1"])
-
-// omitSchema only contains "prop1"
-let omitSchema = schema.omitProperties(["prop2"])
-```
-
-### pickAdditionalProperties
-
-This method is a version of `pickProperties` that supports `additionalProperties`. You can keep the index signature, remove it or even restrict it to specific property names:
-
-```typescript
-let schema = SchemaBuilder.emptySchema().addString("prop1").addBoolean("prop2").addAdditionalProperties(SchemaBuilder.stringSchema())
-
-// pick properties and remove the index signature from the schema
-let schemaWithoutIndexSignature = schema.pickAdditionalProperties(["prop1", "prop2"])
-
-// pick properties and keep the index signature from the schema
-let schemaWithIndexSignature = schema.pickAdditionalProperties(["prop1"], [])
-
-// pick properties and keep only "prop3" from the index signature
-let schemaWithOtherProperties = schema.pickAdditionalProperties(["prop1", "prop2"], ["prop3"])
-```
-
-### mergeProperties
-
-`mergeProperties` method allows you to merge properties from the given schema into the current one. Properties that are defined in both schemas are merged using `anyOf` operator (`|` operator in Typescript).
-
-```typescript
-let schema2 = SchemaBuilder.emptySchema().addArray("prop2", SchemaBuilder.stringSchema()).addNumber("prop3")
-
-let schema = SchemaBuilder.emptySchema().addString("prop1").addBoolean("prop2").mergeProperties(schema2)
-```
-
-Which gives you following interface :
-
-```typescript
-type T = {
-    prop1: string
-    prop3: number
-    prop2: boolean | string[]
-}
-```
-
-### overwriteProperties
-
-`overwriteProperties` method allows you to overwrite properties with the given schema. Properties that are defined in both schemas take the new type instead.
-
-```typescript
-let schema2 = SchemaBuilder.emptySchema().addArray("prop2", SchemaBuilder.stringSchema()).addNumber("prop3")
-
-let schema = SchemaBuilder.emptySchema().addString("prop1").addBoolean("prop2").overwriteProperties(schema2)
-```
-
-Which gives you following interface :
-
-```typescript
-type T = {
-    prop1: string
-    prop2: string[]
-    prop3: number
-}
-```
-
-### transformProperties
-
-`transformProperties` method allows you to add a new type to existing properties. The json schema operator used is `oneOf` and the typescript type operator is `|`.
-
-```typescript
-let schema = SchemaBuilder.emptySchema()
-    .addArray("prop1", SchemaBuilder.stringSchema())
-    .addBoolean("prop2")
-    .transformProperties(SchemaBuilder.stringSchema(), ["prop1"])
-```
-
-### transformPropertiesToArray
-
-`transformPropertiesToArray` method allows you to transform existing properties to add an array version of it. The json schema operator used is `oneOf` and the typescript type operator is `|`.
-Properties that are already arrays are not affected.
-
-```typescript
-let schema = SchemaBuilder.emptySchema().addString("prop1").addBoolean("prop2").transformPropertiesToArray(["prop1"])
-```
-
-### unwrapArrayProperties
-
-`unwrapArrayProperties` method allows you to transform existing array properties to add the generic type of the array to it. The json schema operator used is `oneOf` and the typescript type operator is `|`.
-Properties that are not arrays are not affected.
-
-```typescript
-let schema = SchemaBuilder.emptySchema().addArray("prop1", SchemaBuilder.stringSchema()).addBoolean("prop2").unwrapArrayProperties(["prop1"])
-```
-
-### validate
-
-`validate` and `validateList` methods allows you to easily run validation against your schema. Those two methods use `Ajv` library. Validation functions are cached automatically. It uses the following default configuration :
-
-```typescript
-new Ajv({
-    coerceTypes: false,
-    removeAdditional: false,
-    useDefaults: true,
-    strict: false,
-})
-```
-
-You can override this configuration using the `configureValidation` method.
-
-You can also force the validation function to be cached right away `schema.cacheValidationFunction()` and/or `this.cacheListValidationFunction()`
-
-### Literal Json Schema
-
-`SchemaBuilder` contains a `fromJsonSchema` method that has the ability to deduce the type from the schema parameter directly. The schema has to be provided in a literal form using `as const`.
-
-For example:
-
-```typescript
-let schemaBuilder = SchemaBuilder.fromJsonSchema({
-    type: "object",
-    properties: {
-        aString: {
-            type: "string",
-            description: "this is a test",
-        },
-        aBoolean: {
-            type: "boolean",
-        },
-        anInteger: {
-            type: "integer",
-            minimum: 0,
-        },
-        aSubObject: {
-            type: "object",
-            properties: {
-                aSubProperty: {
-                    type: "number",
-                    maximum: 100,
-                },
-            },
-        },
-        anArray: {
-            type: "array",
-            items: {
-                type: "string",
-                enum: ["a", "b", "c"],
-            },
-        },
-    },
-    required: ["aBoolean", "anArray"],
-    additionalProperties: false,
-} as const)
-```
-
-Which gives you the following interface:
-
-```typescript
-type T = {
-    aBoolean: boolean
-    anArray: ("a" | "b" | "c")[]
-    aString?: string
-    anInteger?: number
-    aSubObject?: {
-        aSubProperty: number
-    } & {
-        [k: string]: any
-    }
-}
-```
+It covers building schemas (primitives, objects, arrays, tuples, enums, unions), transforming them (pick/omit, optionals, merging, combinators), validation, and the complete API reference.
 
 ## What's next?
 
-`schema-builder` is a component of **Serafin** framework. You can go to the main documentation to learn more about it : [https://github.com/serafin-labs/serafin](https://github.com/serafin-labs/serafin)
+`schema-builder` is a component of the **Serafin** framework. Learn more at [github.com/serafin-labs/serafin](https://github.com/serafin-labs/serafin).
+
+## License
+
+[MIT](./LICENSE)

@@ -165,9 +165,7 @@ describe("Schema Builder", function () {
     })
 
     it("should addTypes on an object schema and validate data", function () {
-        const schemaBuilder = SB.emptySchema()
-            .addTypes("id", ["number", "string"])
-            .addTypes("nick", ["string", "null"], {}, false)
+        const schemaBuilder = SB.emptySchema().addTypes("id", ["number", "string"]).addTypes("nick", ["string", "null"], {}, false)
         const value: { id: number | string; nick?: string | null } = schemaBuilder.T
         expect(() => schemaBuilder.validate({ id: 1 })).to.not.throw()
         expect(() => schemaBuilder.validate({ id: "x", nick: "n" })).to.not.throw()
@@ -1304,7 +1302,6 @@ describe("Schema Builder", function () {
             const cfg = SB.globalAJVValidationConfig
             expect(cfg).to.be.an("object")
             // Defaults seeded on the class
-            expect(cfg.useDefaults).to.equal(true)
             expect(cfg.coerceTypes).to.equal(false)
         })
 

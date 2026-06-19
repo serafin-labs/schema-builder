@@ -1,0 +1,26 @@
+:root {
+    /* Brand — cyan → blue gradient pulled from the Serafin logo */
+    --vp-c-brand-1: #0e8fc0; /* darkened enough to stay readable on white */
+    --vp-c-brand-2: #1aa6d6;
+    --vp-c-brand-3: #38bce8;
+    --vp-c-brand-soft: rgba(56, 188, 232, 0.14);
+
+    --vp-home-hero-name-color: transparent;
+    --vp-home-hero-name-background: linear-gradient(120deg, #2b7fff 30%, #38d0f0);
+
+    /* Glow behind the hero image (only shows when a hero `image` is set) */
+    --vp-home-hero-image-background-image: linear-gradient(-45deg, #2b7fff 40%, #38d0f0 70%);
+    --vp-home-hero-image-filter: blur(44px);
+}
+
+.dark {
+    --vp-c-brand-1: #4fd0f0; /* bright cyan, high contrast on dark */
+    --vp-c-brand-2: #38bce8;
+    --vp-c-brand-3: #1aa6d6;
+    --vp-c-brand-soft: rgba(79, 208, 240, 0.16);
+
+    /* Navy canvas to match the logo background */
+    --vp-c-bg: #0f1620;
+    --vp-c-bg-alt: #0b1019;
+    --vp-c-bg-soft: #141d2a;
+}

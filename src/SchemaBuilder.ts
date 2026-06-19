@@ -34,7 +34,6 @@ export class SchemaBuilder<T> {
     private static globalAJVConfig: Options = {
         coerceTypes: false,
         removeAdditional: false,
-        useDefaults: true,
         strict: false,
         allErrors: true,
     }
@@ -1492,7 +1491,7 @@ export class SchemaBuilder<T> {
 
     /**
      * Change the default Ajv configuration to use the given values.
-     * The default validation config is { coerceTypes: false, removeAdditional: false, useDefaults: true }
+     * The default validation config is { coerceTypes: false, removeAdditional: false, strict: false, allErrors: true }
      */
     configureValidation(validationConfig: Options) {
         // The schemaObject reference is shared; both builders treat it as immutable

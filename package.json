@@ -48,6 +48,7 @@
     },
     "devDependencies": {
         "@istanbuljs/nyc-config-typescript": "^1.0.2",
+        "@shikijs/vitepress-twoslash": "^4.2.0",
         "@types/chai": "^4.3.20",
         "@types/lodash": "^4.17.24",
         "@types/mocha": "^10.0.6",
@@ -60,7 +61,9 @@
         "ts-lint": "^4.5.1",
         "tslint-config-airbnb": "^5.11.2",
         "tsx": "^4.22.4",
-        "typescript": "^6.0.3"
+        "twoslash": "^0.3.8",
+        "typescript": "^6.0.3",
+        "vitepress": "^1.6.4"
     },
     "scripts": {
         "test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --recursive ./src/test/**/*.spec.ts",
@@ -74,6 +77,11 @@
         "build:esm": "tsc",
         "fix": "echo '{ \"type\": \"module\" }' > lib/esm/package.json && echo '{ \"type\": \"commonjs\" }' > lib/cjs/package.json",
         "check:exports": "node scripts/check-build-exports.mjs",
+        "predocs:dev": "npm run build:esm",
+        "docs:dev": "vitepress dev docs",
+        "predocs:build": "npm run build:esm",
+        "docs:build": "vitepress build docs",
+        "docs:preview": "vitepress preview docs",
         "prepublishOnly": "npm install && rm -rf ./lib && npm run build && npm test && npm run check:exports"
     }
 }
