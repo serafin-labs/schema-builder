@@ -20,6 +20,7 @@ import {
     AllOf,
     TupleOfWithRest,
     ObjectSchemaDefinition,
+    PropertiesOf,
 } from "./TransformationTypes.js"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
 import { cloneJSON, cloneRoot, setRequired } from "./utils.js"
@@ -151,6 +152,120 @@ export class SchemaBuilder<T> {
                 : cloneJSON(filtered.schemaObject)
         }
         return { properties, required }
+    }
+
+    /**
+     * Internal helper backing the `objectProperties` getter. Recursively collects the effective
+     * `{ properties, required }` of a (possibly composed) object schema by combining the schema's own
+     * `properties` with the contributions of its `allOf`/`anyOf`/`oneOf` branches. See `objectProperties`
+     * for the combination semantics. Returned schemas may share references with `schema`; callers that
+     * need isolation must clone.
+     */
+    private static collectObjectProperties(schema: JSONSchema | boolean): { properties: Record<string, JSONSchema>; required: string[] } {
+        if (typeof schema !== "object" || schema === null) {
+            return { properties: {}, required: [] }
+        }
+        const groups: { properties: Record<string, JSONSchema>; required: string[] }[] = []
+        if (schema.properties) {
+            const own: Record<string, JSONSchema> = {}
+            for (const key in schema.properties) {
+                own[key] = SchemaBuilder.normalizePropertySchema(schema.properties[key])
+            }
+            groups.push({ properties: own, required: schema.required ? [...schema.required] : [] })
+        }
+        for (const keyword of ["allOf", "anyOf", "oneOf"] as const) {
+            const branches = schema[keyword]
+            if (branches) {
+                groups.push(
+                    SchemaBuilder.combinePropertyGroups(
+                        branches.map((b) => SchemaBuilder.collectObjectProperties(b)),
+                        keyword,
+                    ),
+                )
+            }
+        }
+        // The schema's own properties and every combinator group all constrain the same value at once.
+        return SchemaBuilder.combinePropertyGroups(groups, "allOf")
+    }
+
+    /**
+     * Internal helper backing `collectObjectProperties`. Combines several `{ properties, required }`
+     * collections under a single combinator keyword. With `allOf` a property contributed by several
+     * collections becomes their `allOf` and `required` is the union; with `anyOf`/`oneOf` it becomes
+     * their `anyOf`/`oneOf` and `required` is the intersection (a property is guaranteed only when
+     * every alternative requires it).
+     */
+    private static combinePropertyGroups(
+        groups: { properties: Record<string, JSONSchema>; required: string[] }[],
+        keyword: "allOf" | "anyOf" | "oneOf",
+    ): { properties: Record<string, JSONSchema>; required: string[] } {
+        if (groups.length === 0) {
+            return { properties: {}, required: [] }
+        }
+        if (groups.length === 1) {
+            return { properties: { ...groups[0].properties }, required: [...groups[0].required] }
+        }
+        const properties: Record<string, JSONSchema> = {}
+        for (const group of groups) {
+            for (const key in group.properties) {
+                if (key in properties) {
+                    continue
+                }
+                const contributions = groups.filter((g) => key in g.properties).map((g) => g.properties[key])
+                properties[key] = contributions.length === 1 ? contributions[0] : SchemaBuilder.combineSchemas(contributions, keyword)
+            }
+        }
+        let required: string[]
+        if (keyword === "allOf") {
+            const requiredSet = new Set<string>()
+            for (const group of groups) {
+                for (const name of group.required) {
+                    requiredSet.add(name)
+                }
+            }
+            required = [...requiredSet].filter((name) => name in properties)
+        } else {
+            required = Object.keys(properties).filter((name) => groups.every((g) => g.required.indexOf(name) !== -1))
+        }
+        return { properties, required }
+    }
+
+    /**
+     * Internal helper backing `collectObjectProperties`. Combines several subschemas under a single
+     * combinator keyword, flattening nested same-keyword combinators and de-duplicating identical
+     * contributions so that, e.g., the same property type appearing in two branches is not wrapped.
+     */
+    private static combineSchemas(schemas: JSONSchema[], keyword: "allOf" | "anyOf" | "oneOf"): JSONSchema {
+        const flattened: JSONSchema[] = []
+        for (const s of schemas) {
+            const inner = s[keyword]
+            if (inner && Object.keys(s).length === 1) {
+                flattened.push(...(inner as JSONSchema[]))
+            } else {
+                flattened.push(s)
+            }
+        }
+        const unique: JSONSchema[] = []
+        for (const s of flattened) {
+            if (!unique.some((u) => _.isEqual(u, s))) {
+                unique.push(s)
+            }
+        }
+        return unique.length === 1 ? unique[0] : { [keyword]: unique }
+    }
+
+    /**
+     * Internal helper. Normalises a property schema value into a `JSONSchema` object: boolean schemas
+     * (`true`/`false`) are converted to their object equivalents so they can back a `SchemaBuilder`.
+     */
+    private static normalizePropertySchema(s: JSONSchema | boolean): JSONSchema {
+        if (s === true) {
+            return {}
+        }
+        if (s === false) {
+            return { not: {} }
+        }
+        return s
     }
 
     /**
@@ -593,7 +708,8 @@ export class SchemaBuilder<T> {
         if (schemaObject.required) {
             schemaObject.required = schemaObject.required.filter((p: string) => p !== propertyName)
         }
-        const schemaBuilder = typeof schemaBuilderResolver === "function" ? schemaBuilderResolver(this.getSubschema(propertyName)) : schemaBuilderResolver
+        const schemaBuilder =
+            typeof schemaBuilderResolver === "function" ? schemaBuilderResolver(this.getSubschema(propertyName) as SchemaBuilder<T[K]>) : schemaBuilderResolver
         schemaObject.properties![propertyKey] = cloneJSON(schemaBuilder.schemaObject)
         if (isRequired === true || isRequired === undefined) {
             schemaObject.required = [...(schemaObject.required ?? []), propertyKey]
@@ -687,7 +803,7 @@ export class SchemaBuilder<T> {
         isRequired?: REQUIRED,
         nullable?: N,
     ): SchemaBuilder<{ [P in keyof Combine<T, K2, K, REQUIRED, N>]: Combine<T, K2, K, REQUIRED, N>[P] }> {
-        return this.addProperty(propertyName, SchemaBuilder.enumSchema(values, schema, nullable), isRequired) as any
+        return this.addProperty(propertyName, SchemaBuilder.enumSchema(values, schema, nullable) as SchemaBuilder<any>, isRequired) as any
     }
 
     /**
@@ -753,7 +869,7 @@ export class SchemaBuilder<T> {
     ): SchemaBuilder<{
         [P in keyof Combine<T, TupleOfWithRest<S, R>, K, REQUIRED, N>]: Combine<T, TupleOfWithRest<S, R>, K, REQUIRED, N>[P]
     }> {
-        return this.addProperty(propertyName, SchemaBuilder.tupleSchema(items, schema, nullable), isRequired) as any
+        return this.addProperty(propertyName, SchemaBuilder.tupleSchema(items, schema, nullable) as SchemaBuilder<any>, isRequired) as any
     }
 
     /**
@@ -767,7 +883,7 @@ export class SchemaBuilder<T> {
         isRequired?: REQUIRED,
         nullable?: N,
     ): SchemaBuilder<{ [P in keyof Combine<T, JsonSchemaTypesUnion<L>, K, REQUIRED, N>]: Combine<T, JsonSchemaTypesUnion<L>, K, REQUIRED, N>[P] }> {
-        return this.addProperty(propertyName, SchemaBuilder.typesSchema(types, schema, nullable), isRequired) as any
+        return this.addProperty(propertyName, SchemaBuilder.typesSchema(types, schema, nullable) as SchemaBuilder<any>, isRequired) as any
     }
 
     /**
@@ -1187,6 +1303,41 @@ export class SchemaBuilder<T> {
         const properties = this.properties
         const required = this.requiredProperties
         return properties ? properties.filter((property) => required && required.indexOf(property) === -1) : null
+    }
+
+    /**
+     * Extract the properties of this object schema as a property-definition map, formatted the same
+     * way `objectSchema` / `addProperties` expect their input. It is meant to be spread to compose new schemas, e.g.
+     * `SB.objectSchema({}, { ...a.objectProperties, ...b.objectProperties })`.
+     *
+     * Each entry is a `SchemaBuilder` when the property is required, or a `[SchemaBuilder, undefined]`
+     * tuple when it is optional (the same optional marker `objectSchema` recognises). Every returned
+     * builder owns a deep copy of its subschema, so mutating the result never affects this schema.
+     *
+     * Composition keywords are traversed: a schema's own `properties` plus its `allOf`/`anyOf`/`oneOf`
+     * branches all constrain the same value, so they are flattened into a single map.
+     * - Branches of an `allOf` (and the schema's own properties) all apply at once: a property
+     *   contributed by several of them becomes an `allOf` of the contributions, and it is required when
+     *   any contribution requires it.
+     * - Branches of an `anyOf`/`oneOf` are alternatives: a property contributed by several branches
+     *   becomes an `anyOf`/`oneOf` of the contributions (e.g. a `string` in one branch and a `number`
+     *   in another yields `string | number`), and it is required only when every branch requires it.
+     *
+     * Identical contributions are de-duplicated rather than wrapped. Safe to call on any schema: when the
+     * schema is not an object and uses no composition keywords (e.g. a string or array schema), it returns
+     * an empty map, so it can be spread unconditionally.
+     */
+    get objectProperties(): PropertiesOf<T> {
+        if (!this.isObjectSchema && !this.hasSchemasCombinationKeywords) {
+            return {} as PropertiesOf<T>
+        }
+        const { properties, required } = SchemaBuilder.collectObjectProperties(this.schemaObject)
+        const result: { [key: string]: SchemaBuilder<any> | [SchemaBuilder<any>, undefined] } = {}
+        for (const key in properties) {
+            const builder = new SchemaBuilder(cloneJSON(properties[key]))
+            result[key] = required.indexOf(key) !== -1 ? builder : [builder, undefined]
+        }
+        return result as PropertiesOf<T>
     }
 
     /**

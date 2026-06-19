@@ -34,6 +34,23 @@ type Task = typeof taskSchema.T
 
 Because both come from the same builder, they can never disagree. And every transformation method (`pickProperties`, `toOptionals`, `mergeProperties`, …) returns a **new builder** that updates the schema and the inferred type together — so deriving all those related shapes stays a one-liner.
 
+## JSON Schema is the model, not an export
+
+A key design choice: the thing you build _is_ a JSON Schema document. `SchemaBuilder` maps **1:1** onto JSON Schema 2020-12 (plus the OpenAPI 3.1 extensions like `discriminator`), and the underlying document is always one property access away:
+
+```ts twoslash
+import { SB } from "@serafin/schema-builder"
+const taskSchema = SB.objectSchema({ title: "Task" }, { name: SB.stringSchema() })
+// ---cut---
+const jsonSchema = taskSchema.schema // a plain JSON Schema object — feed it to OpenAPI, Ajv, an MCP tool, …
+```
+
+There is no lossy "convert to JSON Schema" step, because there is nothing to convert. This is the main difference from validator-first libraries, where the schema is a library-specific object and JSON Schema is an export target
+
+## Built for transformation
+
+The second design choice follows from the first: Schema Builder is less about _declaring_ one schema and more about **transforming** one definition into the family of related schemas a real API needs — create bodies, patch bodies, query params, public projections, responses. That is exactly what powers [`@serafin/pipeline`](https://github.com/serafin-labs/serafin) and the Serafin framework. Methods like `pickProperties`, `omitProperties`, `toOptionals`, `mergeProperties`, `transformProperties` and [`objectProperties`](./object-properties) exist so each derived shape stays a one-liner that can never drift from its source.
+
 ## When to use it
 
 - You already validate with JSON Schema / Ajv and are tired of hand-writing matching interfaces.

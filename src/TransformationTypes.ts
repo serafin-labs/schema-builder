@@ -221,6 +221,78 @@ export type PathReplace<PATH extends unknown[], T, U> = PATH extends [infer PATH
     : U
 
 /**
+ * Map an object type `T` back to the property-definition map shape accepted by
+ * `SchemaBuilder.objectSchema` / `SchemaBuilder.addProperties`.
+ *
+ * It is the inverse of `ObjectSchemaDefinition`: required properties map to a single
+ * `SchemaBuilder`, optional properties to a `[SchemaBuilder, undefined]` tuple (the marker
+ * used to detect optionality). This is the type of the `objectProperties` getter, so that
+ * `SB.objectSchema({}, { ...aSchema.objectProperties })` round-trips `T`.
+ *
+ * When `T` has no object member (a primitive or array schema), it resolves to the empty map `{}` —
+ * `objectProperties` is safe to call on any schema and simply yields no properties to spread.
+ */
+export type PropertiesOf<T> = IsAny<T> extends true
+    ? any
+    : [ObjectMember<T>] extends [never]
+      ? // Not an object schema (e.g. a string, number or array schema): no properties to extract.
+        {}
+      : string extends keyof ObjectMember<T>
+        ? // `T` has a string index signature (a record / `additionalProperties` result): a precise
+          // per-key mapping is meaningless, so fall back to the loose `objectSchema`-input type. This
+          // also keeps the mapping `T`-independent for such types, so it does not perturb the structural
+          // identity of `SchemaBuilder` (which `PropertyAccessor` relies on for its recursive types).
+          { [k: string]: SchemaBuilder<any> | [SchemaBuilder<any>, undefined] }
+        : MergedObjectProperties<ObjectMember<T>>
+
+/**
+ * The object (non-array) members of a possibly-union `T`. Primitives and arrays/tuples are dropped, so
+ * `string | { a: number }` keeps only `{ a: number }`, and a primitive or array `T` resolves to `never`.
+ */
+export type ObjectMember<T> = T extends readonly any[] ? never : T extends object ? T : never
+
+/**
+ * Backs {@link PropertiesOf} once `O` has been reduced to the object members of the schema type.
+ *
+ * It maps over a *computed* key set (`UnionKeys<O>`, not `keyof O`) so the mapped type is non-homomorphic
+ * and does not distribute over a union `O` (e.g. a top-level `oneOf` yielding `A | B`). Each property's
+ * type is collected across every member, mirroring the runtime which merges branch properties into a
+ * single `oneOf` (so `string` + `number` -> `string | number`).
+ *
+ * A property is emitted as **optional** (the `[SchemaBuilder, undefined]` tuple) when it is absent from
+ * some member (`K` not in `keyof O`, which for a union is the keys common to *all* members) or when its
+ * merged value type already admits `undefined`. This matches the runtime, where a property contributed by
+ * only some `oneOf`/`anyOf` branches is not guaranteed to be present.
+ */
+export type MergedObjectProperties<O> = {
+    [K in UnionKeys<O>]-?: K extends keyof O
+        ? undefined extends UnionValueAt<O, K>
+            ? [SchemaBuilder<Exclude<UnionValueAt<O, K>, undefined>>, undefined]
+            : SchemaBuilder<UnionValueAt<O, K>>
+        : [SchemaBuilder<Exclude<UnionValueAt<O, K>, undefined>>, undefined]
+}
+
+/**
+ * All property keys appearing in any member of a (possibly union) `T`. Distributes over `T` so a
+ * union contributes the keys of every branch.
+ */
+export type UnionKeys<T> = T extends unknown ? keyof T : never
+
+/**
+ * The type of property `K` collected across every member of a (possibly union) `T`. A key present in
+ * several branches yields the union of its per-branch types; a key absent from a branch contributes
+ * nothing for that branch.
+ */
+export type UnionValueAt<T, K extends PropertyKey> = T extends unknown ? (K extends keyof T ? T[K] : never) : never
+
+/**
+ * Resolve to `true` only when `T` is `any`. Used to keep `any`-typed builders structurally
+ * compatible (a mapped type over `any` would otherwise collapse to an index-signature object
+ * rather than `any`).
+ */
+export type IsAny<T> = 0 extends 1 & T ? true : false
+
+/**
  * Transform a map of SchemaBuilders into it's corresponding model type
  * You can wrap a schema with brackets to declare the property is optional
  * @example: {

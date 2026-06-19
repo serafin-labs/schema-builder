@@ -61,6 +61,7 @@ export default defineConfig({
                     text: "Introduction",
                     items: [
                         { text: "Why Schema Builder?", link: "/guide/why" },
+                        { text: "Schema Builder vs Zod", link: "/guide/comparison" },
                         { text: "Getting Started", link: "/guide/getting-started" },
                     ],
                 },
@@ -79,6 +80,7 @@ export default defineConfig({
                         { text: "Picking & Omitting", link: "/guide/pick-omit" },
                         { text: "Optionals & Nullables", link: "/guide/optionals" },
                         { text: "Merging & Overwriting", link: "/guide/merging" },
+                        { text: "Composing with objectProperties", link: "/guide/object-properties" },
                         { text: "Transforming Properties", link: "/guide/transforming" },
                     ],
                 },

@@ -2031,6 +2031,126 @@ describe("Schema Builder", function () {
             )
         })
     })
+
+    describe("objectProperties", function () {
+        it("extracts required and optional properties in the objectSchema format", function () {
+            const userSchema = SB.objectSchema(
+                {},
+                {
+                    id: SB.stringSchema(),
+                    age: [SB.integerSchema(), undefined],
+                },
+            )
+            const properties = userSchema.objectProperties
+            expect(properties.id).to.be.instanceOf(SchemaBuilder)
+            expect(properties.id.schema).to.deep.equal({ type: "string" })
+            expect(Array.isArray(properties.age)).to.equal(true)
+            expect(properties.age[0].schema).to.deep.equal({ type: "integer" })
+            expect(properties.age[1]).to.equal(undefined)
+        })
+
+        it("can be spread to compose a new object schema that round-trips the type", function () {
+            const a = SB.objectSchema({}, { id: SB.stringSchema(), age: [SB.integerSchema(), undefined] })
+            const b = SB.objectSchema({}, { active: SB.booleanSchema() })
+            const composed = SB.objectSchema({ title: "Composed" }, { ...a.objectProperties, ...b.objectProperties })
+            type Composed = typeof composed.T
+            const value: Composed = { id: "x", active: true }
+            expect(() => composed.validate(value)).to.not.throw()
+            expect(composed.schema).to.deep.equal({
+                title: "Composed",
+                type: "object",
+                properties: { id: { type: "string" }, age: { type: "integer" }, active: { type: "boolean" } },
+                required: ["id", "active"],
+                additionalProperties: false,
+            })
+        })
+
+        it("returns deep copies that do not affect the source schema when mutated", function () {
+            const source = SB.objectSchema({}, { nested: SB.objectSchema({}, { v: SB.stringSchema() }) })
+            const extracted = source.objectProperties.nested
+            const mutated = extracted.addNumber("extra")
+            expect(mutated.schema).to.not.equal(source.schema.properties!.nested)
+            expect((source.schema.properties!.nested as JSONSchema).properties).to.deep.equal({ v: { type: "string" } })
+        })
+
+        it("merges a oneOf branch property of differing types into a reused oneOf", function () {
+            const schema = SB.oneOf(
+                SB.objectSchema({}, { value: SB.stringSchema(), kind: SB.constSchema("a") }),
+                SB.objectSchema({}, { value: SB.numberSchema(), kind: SB.constSchema("b") }),
+            )
+            const properties = schema.objectProperties
+            // The union (oneOf) is collapsed into a single map: each shared property's type is the
+            // union of its per-branch types, not a union of two property maps.
+            const value: SchemaBuilder<string | number> = properties.value
+            const kind: SchemaBuilder<"a" | "b"> = properties.kind
+            // 'value' exists in both branches with different types -> oneOf of the two
+            expect(value.schema).to.deep.equal({ oneOf: [{ type: "string" }, { type: "number" }] })
+            expect(kind.schema).to.deep.equal({ oneOf: [{ const: "a" }, { const: "b" }] })
+        })
+
+        it("de-duplicates identical contributions across oneOf branches", function () {
+            const schema = SB.oneOf(
+                SB.objectSchema({}, { shared: SB.stringSchema(), a: SB.numberSchema() }),
+                SB.objectSchema({}, { shared: SB.stringSchema(), b: SB.numberSchema() }),
+            )
+            const properties = schema.objectProperties
+            // identical 'shared' schema in both branches -> single string schema, not a oneOf
+            expect(properties.shared.schema).to.deep.equal({ type: "string" })
+            // 'a' only exists in one branch -> optional (intersection of required is empty)
+            expect(Array.isArray(properties.a)).to.equal(true)
+        })
+
+        it("treats a property required in every oneOf branch as required and others as optional", function () {
+            const schema = SB.oneOf(SB.objectSchema({}, { id: SB.stringSchema(), only: SB.numberSchema() }), SB.objectSchema({}, { id: SB.stringSchema() }))
+            const properties = schema.objectProperties
+            expect(properties.id).to.be.instanceOf(SchemaBuilder)
+            expect(Array.isArray(properties.only)).to.equal(true)
+        })
+
+        it("merges allOf branches with union of required properties", function () {
+            const schema = SB.allOf(SB.objectSchema({}, { a: SB.stringSchema() }), SB.objectSchema({}, { b: [SB.numberSchema(), undefined] }))
+            const properties = schema.objectProperties
+            expect(properties.a).to.be.instanceOf(SchemaBuilder)
+            expect(Array.isArray(properties.b)).to.equal(true)
+        })
+
+        it("combines a property contributed by both allOf branches into an allOf", function () {
+            const schema = SB.allOf(
+                SB.objectSchema({}, { value: SB.stringSchema({ minLength: 1 }) }),
+                SB.objectSchema({}, { value: SB.stringSchema({ maxLength: 5 }) }),
+            )
+            const properties = schema.objectProperties
+            expect(properties.value.schema).to.deep.equal({
+                allOf: [
+                    { type: "string", minLength: 1 },
+                    { type: "string", maxLength: 5 },
+                ],
+            })
+        })
+
+        it("flattens own properties together with an allOf group", function () {
+            const schema = SB.emptySchema()
+                .addString("own")
+                .intersectProperties(SB.objectSchema({}, { extra: SB.numberSchema() }))
+            // build a schema that mixes own properties and an allOf to exercise traversal
+            const mixed = new SchemaBuilder({
+                type: "object",
+                properties: { own: { type: "string" } },
+                required: ["own"],
+                allOf: [{ type: "object", properties: { extra: { type: "number" } }, required: ["extra"] }],
+            })
+            const properties = mixed.objectProperties as Record<string, SchemaBuilder<any> | [SchemaBuilder<any>, undefined]>
+            expect(properties.own).to.be.instanceOf(SchemaBuilder)
+            expect(properties.extra).to.be.instanceOf(SchemaBuilder)
+            expect(schema.schema).to.exist
+        })
+
+        it("returns an empty map when used on a non-object schema", function () {
+            expect(SB.stringSchema().objectProperties).to.deep.equal({})
+            expect(SB.numberSchema().objectProperties).to.deep.equal({})
+            expect(SB.arraySchema(SB.stringSchema()).objectProperties).to.deep.equal({})
+        })
+    })
 })
 
 describe("Test Side Effects With global AJV config", function () {
