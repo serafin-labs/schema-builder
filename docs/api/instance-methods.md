@@ -26,7 +26,13 @@ See [Object Schemas](../guide/objects).
 | `pickProperties(keys)` | Keep only the listed properties. |
 | `omitProperties(keys)` | Drop the listed properties. |
 | `pickAdditionalProperties(keys, extraKeys?)` | `pick` that's aware of index signatures. |
+| `pickByType(type)` / `omitByType(type)` | Keep / drop properties by JSON Schema `type` (`integer` counts as `number`). |
+| `omitReadOnlyProperties()` / `omitWriteOnlyProperties()` | Drop `readOnly` / `writeOnly` properties from the **emitted schema** (type unchanged — see [Transforming](../guide/transforming)). |
 | `renameProperty(from, to)` | Rename a key, keeping its schema. |
+| `renameProperties(map)` | Rename several keys via a `{ old: "new" }` map. |
+| `prefixProperties(prefix, keys?, { capitalize? })` / `suffixProperties(suffix, keys?)` | Prefix / suffix property names (all, or a subset). `capitalize` upper-cases the original key's first char (`user` + `id` → `userId`). |
+| `toCamelCaseKeys()` / `toSnakeCaseKeys()` | Convert all property names between `camelCase` and `snake_case` / `kebab-case`. |
+| `propertyNamesEnum()` / `propertyNamesArray()` | Reflect property names into an `enum` / array schema. |
 | `getSubschema(name)` | Extract a property as its own builder. |
 | `getItemsSubschema()` | Extract the item schema of an array (non-tuple `items` only). |
 | `objectProperties` | _(getter)_ Extract all properties as an `objectSchema`-style map for spreading. Traverses `allOf`/`anyOf`/`oneOf`. |
@@ -52,11 +58,23 @@ See [Optionals & Nullables](../guide/optionals).
 | `mergeProperties(other)` | union (`\|`) |
 | `overwriteProperties(other)` | replace with incoming |
 | `intersectProperties(other)` | intersection (`&`) |
-| `transformProperties(builder, keys?)` | add an alternative type (`oneOf`) |
-| `transformPropertiesToArray(keys?)` | also allow an array of the type |
-| `unwrapArrayProperties(keys?)` | also allow the element type |
+| `transformProperties(builder, keys?, { keepOriginal? })` | add an alternative type (`oneOf`), or replace it with `{ keepOriginal: false }` |
+| `transformPropertiesToArray(keys?, arrayKeywords?, { keepOriginal? })` | also allow (or replace with) an array of the type |
+| `unwrapArrayProperties(keys?, { keepOriginal? })` | also allow (or replace with) the element type |
+| `expandEnumToProperties(enumProp \| pa => pa.path, valueBuilder, { prefix?, suffix?, required? })` | one generated property per enum value; pass a resolver to expand a nested enum with inferred typing |
 
 See [Merging & Overwriting](../guide/merging) and [Transforming Properties](../guide/transforming).
+
+## Enum & discriminated-union transforms
+
+| Method | Description |
+| --- | --- |
+| `pickEnumValues(values)` | Narrow an enum schema to the listed values. |
+| `omitEnumValues(values)` | Drop the listed values from an enum schema. |
+| `mapEnumValues(map)` | Remap enum values via a `{ old: new }` map. |
+| `narrowDiscriminated(prop, tag)` | Extract one branch of a discriminated `oneOf` as its own builder. |
+
+See [Enums, Consts & Unions](../guide/enums-unions).
 
 ## Dependencies & unevaluated
 
@@ -79,6 +97,8 @@ These methods are **immutable** and return a new builder. The keyword setters ar
 | Method | Applies to | Description |
 | --- | --- | --- |
 | `setSchemaAttributes(attrs)` | any | Set general metadata: `title`, `description`, `default`, `examples`, `readOnly`, `writeOnly`, `deprecated`, `$id`. `default` is typed as `T` and `examples` as `T[]`. |
+| `setPropertiesAttributes(map, { deep? })` | object | Merge common keywords into many properties at once. `deep` descends into nested objects and `oneOf`/`anyOf`/`allOf`. |
+| `describeProperties(map, { mode?, separator?, deep? })` | object | Set / `append` / `prepend` `description` on many properties at once. |
 | `setStringConstraints(constraints)` | string | Set `minLength`, `maxLength`, `pattern`, `format`. |
 | `setNumberConstraints(constraints)` | number / integer | Set `multipleOf`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`. |
 | `setArrayConstraints(constraints)` | array / tuple | Set `minItems`, `maxItems`, `uniqueItems`. |

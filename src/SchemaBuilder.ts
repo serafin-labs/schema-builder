@@ -21,8 +21,23 @@ import {
     TupleOfWithRest,
     ObjectSchemaDefinition,
     PropertiesOf,
+    TransformPropertiesReplace,
+    TransformPropertiesToArrayReplace,
+    UnwrapArrayPropertiesReplace,
+    RenameProperties,
+    PrefixProperties,
+    SuffixProperties,
+    ExpandEnumToProperties,
+    JSONTypeToTS,
+    KeysOfType,
+    StringKeys,
+    CamelCaseKeys,
+    SnakeCaseKeys,
+    MapEnumValues,
+    Expand,
 } from "./TransformationTypes.js"
 import { JSONSchema, JSONSchemaTypeName } from "./JsonSchema.js"
+import type { PropertyAccessorPath, ReadOnlyPropertyAccessorResolver } from "./PropertyAccessor.js"
 import { cloneJSON, cloneRoot, setRequired } from "./utils.js"
 import { walkJsonSchema } from "./walkJsonSchema.js"
 import { createPropertyAccessor } from "./PropertyAccessor.js"
@@ -852,7 +867,7 @@ export class SchemaBuilder<T> {
         isRequired?: REQUIRED,
         nullable?: N,
     ): SchemaBuilder<{ [P in keyof Combine<T, U[], K, REQUIRED, N>]: Combine<T, U[], K, REQUIRED, N>[P] }> {
-        return this.addProperty(propertyName, SchemaBuilder.arraySchema(items, schema, nullable), isRequired) as any
+        return this.addProperty(propertyName, SchemaBuilder.arraySchema(items, schema, nullable) as SchemaBuilder<any>, isRequired) as any
     }
 
     /**
@@ -1007,18 +1022,24 @@ export class SchemaBuilder<T> {
      * @param changedProperties properties that will have the alternative type
      * @param schemaBuilder
      */
-    transformProperties<U, K extends keyof T>(
+    transformProperties<U, K extends keyof T, KEEP extends boolean = true>(
         schemaBuilder: SchemaBuilder<U>,
         propertyNames?: readonly K[],
-    ): SchemaBuilder<{ [P in keyof TransformProperties<T, K, U>]: TransformProperties<T, K, U>[P] }> {
+        options?: { keepOriginal?: KEEP },
+    ): SchemaBuilder<{
+        [P in keyof (KEEP extends false ? TransformPropertiesReplace<T, K, U> : TransformProperties<T, K, U>)]: (KEEP extends false
+            ? TransformPropertiesReplace<T, K, U>
+            : TransformProperties<T, K, U>)[P]
+    }> {
         this.assertSimpleObjectSchema("transformProperties")
+        const keepOriginal = options?.keepOriginal ?? true
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
         for (const property of propertyNames) {
             const propertySchema = schemaObject.properties![property as string]
-            schemaObject.properties![property as string] = {
-                oneOf: [propertySchema, cloneJSON(schemaBuilder.schemaObject)],
-            }
+            schemaObject.properties![property as string] = keepOriginal
+                ? { oneOf: [propertySchema, cloneJSON(schemaBuilder.schemaObject)] }
+                : cloneJSON(schemaBuilder.schemaObject)
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
     }
@@ -1030,20 +1051,25 @@ export class SchemaBuilder<T> {
      * @param propertyNames properties that will have the alternative array type
      * @param schema Array schema options to add to the transformed properties
      */
-    transformPropertiesToArray<K extends keyof T>(
+    transformPropertiesToArray<K extends keyof T, KEEP extends boolean = true>(
         propertyNames?: readonly K[],
         schema: Pick<JSONSchema, JSONSchemaArraySpecificProperties> = {},
-    ): SchemaBuilder<{ [P in keyof TransformPropertiesToArray<T, K>]: TransformPropertiesToArray<T, K>[P] }> {
+        options?: { keepOriginal?: KEEP },
+    ): SchemaBuilder<{
+        [P in keyof (KEEP extends false ? TransformPropertiesToArrayReplace<T, K> : TransformPropertiesToArray<T, K>)]: (KEEP extends false
+            ? TransformPropertiesToArrayReplace<T, K>
+            : TransformPropertiesToArray<T, K>)[P]
+    }> {
         this.assertSimpleObjectSchema("transformPropertiesToArray")
+        const keepOriginal = options?.keepOriginal ?? true
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
         for (const property of propertyNames) {
             const propertySchema = schemaObject.properties![property as string]
             // Transform the property if it's not an array
             if ((propertySchema as JSONSchema).type !== "array") {
-                schemaObject.properties![property as string] = {
-                    oneOf: [propertySchema, { type: "array", items: cloneJSON(propertySchema), ...schema }],
-                }
+                const arraySchema: JSONSchema = { type: "array", items: cloneJSON(propertySchema), ...schema }
+                schemaObject.properties![property as string] = keepOriginal ? { oneOf: [propertySchema, arraySchema] } : arraySchema
             }
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
@@ -1055,10 +1081,16 @@ export class SchemaBuilder<T> {
      *
      * @param propertyNames properties that will be unwrapped
      */
-    unwrapArrayProperties<K extends keyof T>(
+    unwrapArrayProperties<K extends keyof T, KEEP extends boolean = true>(
         propertyNames?: readonly K[],
-    ): SchemaBuilder<{ [P in keyof UnwrapArrayProperties<T, K>]: UnwrapArrayProperties<T, K>[P] }> {
+        options?: { keepOriginal?: KEEP },
+    ): SchemaBuilder<{
+        [P in keyof (KEEP extends false ? UnwrapArrayPropertiesReplace<T, K> : UnwrapArrayProperties<T, K>)]: (KEEP extends false
+            ? UnwrapArrayPropertiesReplace<T, K>
+            : UnwrapArrayProperties<T, K>)[P]
+    }> {
         this.assertSimpleObjectSchema("unwrapArrayProperties")
+        const keepOriginal = options?.keepOriginal ?? true
         const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
         propertyNames = propertyNames || (Object.keys(schemaObject.properties!) as K[])
         for (const property of propertyNames) {
@@ -1072,12 +1104,465 @@ export class SchemaBuilder<T> {
                 } else {
                     itemsSchema = items as JSONSchema
                 }
-                schemaObject.properties![property as string] = {
-                    oneOf: [cloneJSON(itemsSchema), propertySchema],
-                }
+                schemaObject.properties![property as string] = keepOriginal ? { oneOf: [cloneJSON(itemsSchema), propertySchema] } : cloneJSON(itemsSchema)
             }
         }
         return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Internal helper shared by `renameProperties`, `prefixProperties`, `suffixProperties`,
+     * `toCamelCaseKeys` and `toSnakeCaseKeys`. Rebuilds the `properties` map and `required`
+     * array with every key passed through `mapKey`. Throws if two keys collide after mapping.
+     */
+    private buildRenamedKeysSchema(methodName: string, mapKey: (key: string) => string): JSONSchema {
+        this.assertSimpleObjectSchema(methodName)
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        const sourceProperties = this.schemaObject.properties || {}
+        const newProperties: Record<string, JSONSchema | boolean> = {}
+        const renameMap: Record<string, string> = {}
+        for (const key of Object.keys(sourceProperties)) {
+            const newKey = mapKey(key)
+            if (newKey in newProperties) {
+                throw new VError(
+                    `Schema Builder Error: '${methodName}' produced a duplicate property name '${newKey}' on ${this.schemaObject.title || "this"} schema`,
+                )
+            }
+            newProperties[newKey] = sourceProperties[key]
+            renameMap[key] = newKey
+        }
+        schemaObject.properties = newProperties
+        if (this.schemaObject.required) {
+            schemaObject.required = this.schemaObject.required.map((r: string) => renameMap[r] ?? r)
+        }
+        return schemaObject
+    }
+
+    /**
+     * Rename several properties at once using a `{ oldName: "newName" }` map. Properties not
+     * present in the map are left untouched. Optionality of each property is preserved.
+     *
+     * @param map an object mapping current property names to their new names
+     */
+    renameProperties<const M extends { [P in keyof T]?: PropertyKey }, R = RenameProperties<T, M>>(map: M): SchemaBuilder<{ [P in keyof R]: R[P] }> {
+        this.assertSimpleObjectSchema("renameProperties")
+        const m = map as Record<string, PropertyKey>
+        const sourceProperties = this.schemaObject.properties || {}
+        for (const key of Object.keys(m)) {
+            if (!(key in sourceProperties)) {
+                throw new VError(
+                    `Schema Builder Error: 'renameProperties' called with unknown property '${key}' on ${this.schemaObject.title || "this"} schema`,
+                )
+            }
+        }
+        const schemaObject = this.buildRenamedKeysSchema("renameProperties", (key) => (key in m ? String(m[key]) : key))
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Prefix the name of every property (or only the given ones) with `prefix`. By default the
+     * original casing of the key is kept (`prefix` + `firstName` -> `${prefix}firstName`). Pass
+     * `{ capitalize: true }` to upper-case the first character of each key so the result stays
+     * camelCase (`user` + `id` -> `userId`).
+     *
+     * @param prefix string prepended to each affected property name
+     * @param propertyNames optional subset of properties to prefix (defaults to all)
+     * @param options.capitalize upper-case the first character of the original key when prefixing
+     */
+    prefixProperties<Prefix extends string, K extends keyof T = keyof T, CAP extends boolean = false, R = PrefixProperties<T, Prefix, K, CAP>>(
+        prefix: Prefix,
+        propertyNames?: readonly K[],
+        options?: { capitalize?: CAP },
+    ): SchemaBuilder<{ [P in keyof R]: R[P] }> {
+        const only = propertyNames ? new Set(propertyNames as readonly string[]) : undefined
+        const capitalize = options?.capitalize ?? false
+        const schemaObject = this.buildRenamedKeysSchema("prefixProperties", (key) =>
+            !only || only.has(key) ? `${prefix}${capitalize && key ? `${key.charAt(0).toUpperCase()}${key.slice(1)}` : key}` : key,
+        )
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Suffix the name of every property (or only the given ones) with `suffix`
+     * (`state` + `Date` -> `stateDate`).
+     *
+     * @param suffix string appended to each affected property name
+     * @param propertyNames optional subset of properties to suffix (defaults to all)
+     */
+    suffixProperties<Suffix extends string, K extends keyof T = keyof T, R = SuffixProperties<T, Suffix, K>>(
+        suffix: Suffix,
+        propertyNames?: readonly K[],
+    ): SchemaBuilder<{ [P in keyof R]: R[P] }> {
+        const only = propertyNames ? new Set(propertyNames as readonly string[]) : undefined
+        const schemaObject = this.buildRenamedKeysSchema("suffixProperties", (key) => (!only || only.has(key) ? `${key}${suffix}` : key))
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Convert every property name from `snake_case` / `kebab-case` to `camelCase`, both in the
+     * JSON Schema and in the inferred TypeScript type. Useful at an API boundary to map a stored
+     * representation to a JavaScript-friendly one.
+     */
+    toCamelCaseKeys<R = CamelCaseKeys<T>>(): SchemaBuilder<{ [P in keyof R]: R[P] }> {
+        const schemaObject = this.buildRenamedKeysSchema("toCamelCaseKeys", SchemaBuilder.toCamelCaseKey)
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Convert every property name from `camelCase` / `PascalCase` to `snake_case`, both in the
+     * JSON Schema and in the inferred TypeScript type.
+     */
+    toSnakeCaseKeys<R = SnakeCaseKeys<T>>(): SchemaBuilder<{ [P in keyof R]: R[P] }> {
+        const schemaObject = this.buildRenamedKeysSchema("toSnakeCaseKeys", SchemaBuilder.toSnakeCaseKey)
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    private static toCamelCaseKey(key: string): string {
+        return key.replace(/[_-]+([a-zA-Z0-9])/g, (_match, c: string) => c.toUpperCase()).replace(/[_-]+$/, "")
+    }
+
+    private static toSnakeCaseKey(key: string): string {
+        return key.replace(/([A-Z])/g, (_match, c: string) => `_${c.toLowerCase()}`).replace(/^_/, "")
+    }
+
+    /**
+     * Generate one property per value of a (string) enum property, named `value`, `${prefix}Value`
+     * or `${value}${suffix}`. The enum property itself is read but left untouched, and the
+     * generated properties are always added at the top level.
+     *
+     * The enum to expand is designated either by a top-level property name, or — for a nested enum —
+     * by a read-only property-accessor resolver (`pa => pa.subObject.state`), which infers the enum
+     * value type so the generated property names and the result type stay precise.
+     *
+     * @param enumProperty a top-level property name, or `pa => pa.path.to.enum` to read a nested enum
+     * @param valueSchema the schema used for every generated property
+     * @param options.prefix prepended to each generated name (the value is then capitalized)
+     * @param options.suffix appended to each generated name
+     * @param options.required whether the generated properties are required (default true)
+     *
+     * @example state: "pending" | "approved" -> with `{ suffix: "Date" }`: pendingDate, approvedDate
+     */
+    expandEnumToProperties<K extends keyof T, U, Prefix extends string = "", Suffix extends string = "", REQUIRED extends boolean = true>(
+        enumProperty: K,
+        valueSchema: SchemaBuilder<U>,
+        options?: { prefix?: Prefix; suffix?: Suffix; required?: REQUIRED },
+    ): SchemaBuilder<Expand<ExpandEnumToProperties<T, Extract<T[K], string>, U, Prefix, Suffix, REQUIRED>>>
+    expandEnumToProperties<V, U, Prefix extends string = "", Suffix extends string = "", REQUIRED extends boolean = true>(
+        enumProperty: ReadOnlyPropertyAccessorResolver<T, V>,
+        valueSchema: SchemaBuilder<U>,
+        options?: { prefix?: Prefix; suffix?: Suffix; required?: REQUIRED },
+    ): SchemaBuilder<Expand<ExpandEnumToProperties<T, Extract<V, string>, U, Prefix, Suffix, REQUIRED>>>
+    expandEnumToProperties(
+        enumProperty: keyof T | ReadOnlyPropertyAccessorResolver<T, any>,
+        valueSchema: SchemaBuilder<any>,
+        options?: { prefix?: string; suffix?: string; required?: boolean },
+    ): SchemaBuilder<any> {
+        this.assertSimpleObjectSchema("expandEnumToProperties")
+        const path: PropertyAccessorPath = typeof enumProperty === "function" ? enumProperty(this.getPropertyAccessor()).path : [enumProperty as string]
+        const values = this.resolveEnumValuesAtPath(path, "expandEnumToProperties")
+        const prefix = options?.prefix ?? ""
+        const suffix = options?.suffix ?? ""
+        const required = options?.required ?? true
+        const schemaObject = cloneRoot(this.schemaObject, { properties: {} })
+        for (const value of values) {
+            if (typeof value !== "string") {
+                continue
+            }
+            const name = prefix ? `${prefix}${value.charAt(0).toUpperCase()}${value.slice(1)}${suffix}` : `${value}${suffix}`
+            if (name in schemaObject.properties!) {
+                throw new VError(
+                    `Schema Builder Error: 'expandEnumToProperties' produced a duplicate property name '${name}' on ${this.schemaObject.title || "this"} schema`,
+                )
+            }
+            schemaObject.properties![name] = cloneJSON(valueSchema.schemaObject)
+            if (required) {
+                schemaObject.required = [...(schemaObject.required ?? []), name]
+            }
+        }
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Navigate the schema's `properties` along `path` and return the `enum` found at the leaf.
+     * Only object-property segments are followed (matching `expandEnumToProperties`' intent).
+     */
+    private resolveEnumValuesAtPath(path: PropertyAccessorPath, methodName: string): unknown[] {
+        let current: JSONSchema | boolean | undefined = this.schemaObject
+        for (const segment of path) {
+            if (!current || typeof current === "boolean" || !current.properties || !((segment as string) in current.properties)) {
+                current = undefined
+                break
+            }
+            current = current.properties[segment as string] as JSONSchema
+        }
+        if (!current || typeof current === "boolean" || !Array.isArray(current.enum)) {
+            throw new VError(
+                `Schema Builder Error: '${methodName}' could not find an enum at path '${path.join(".")}' on ${this.schemaObject.title || "this"} schema`,
+            )
+        }
+        return current.enum as unknown[]
+    }
+
+    /**
+     * Remove every property flagged `readOnly: true` from the schema. Typically used to derive a
+     * "create body" from a resource schema (dropping server-managed fields like `id` / `createdAt`).
+     *
+     * Note: this shapes the emitted JSON Schema only — the inferred TypeScript type is returned
+     * unchanged, because `readOnly` is not represented in the type. See the docs for details.
+     */
+    omitReadOnlyProperties(): SchemaBuilder<T> {
+        return this.omitPropertiesByFlag("readOnly", "omitReadOnlyProperties") as any
+    }
+
+    /**
+     * Remove every property flagged `writeOnly: true` from the schema. Typically used to derive a
+     * response/projection schema (dropping write-only fields like `password`).
+     *
+     * Note: this shapes the emitted JSON Schema only — the inferred TypeScript type is returned
+     * unchanged, because `writeOnly` is not represented in the type. See the docs for details.
+     */
+    omitWriteOnlyProperties(): SchemaBuilder<T> {
+        return this.omitPropertiesByFlag("writeOnly", "omitWriteOnlyProperties") as any
+    }
+
+    private omitPropertiesByFlag(flag: "readOnly" | "writeOnly", methodName: string): SchemaBuilder<any> {
+        this.assertSimpleObjectSchema(methodName)
+        const properties = this.schemaObject.properties || {}
+        const keep = Object.keys(properties).filter((k) => {
+            const p = properties[k]
+            return !(p && typeof p === "object" && (p as JSONSchema)[flag] === true)
+        })
+        return this.pickProperties(keep as any)
+    }
+
+    /**
+     * Keep only the properties whose JSON Schema `type` matches `type`. `additionalProperties` is set
+     * to false. Note that `integer` is mapped to `number` at the TypeScript level (TypeScript has no
+     * integer type), and `pickByType("number")` keeps both `number` and `integer` properties.
+     *
+     * @param type the JSON Schema type name to keep
+     */
+    pickByType<TYPE extends JSONSchemaTypeName, R = Pick<T, KeysOfType<T, JSONTypeToTS<TYPE>>>>(type: TYPE): SchemaBuilder<{ [P in keyof R]: R[P] }> {
+        this.assertSimpleObjectSchema("pickByType")
+        const properties = this.schemaObject.properties || {}
+        const keep = Object.keys(properties).filter((k) => SchemaBuilder.schemaMatchesType(properties[k], type))
+        return this.pickProperties(keep as any) as any
+    }
+
+    /**
+     * Remove the properties whose JSON Schema `type` matches `type`. The same `integer` / `number`
+     * caveat as {@link pickByType} applies.
+     *
+     * @param type the JSON Schema type name to remove
+     */
+    omitByType<TYPE extends JSONSchemaTypeName, R = Omit<T, KeysOfType<T, JSONTypeToTS<TYPE>>>>(type: TYPE): SchemaBuilder<{ [P in keyof R]: R[P] }> {
+        this.assertSimpleObjectSchema("omitByType")
+        const properties = this.schemaObject.properties || {}
+        const remove = Object.keys(properties).filter((k) => SchemaBuilder.schemaMatchesType(properties[k], type))
+        return this.omitProperties(remove as any) as any
+    }
+
+    private static schemaMatchesType(schema: JSONSchema | boolean, type: JSONSchemaTypeName): boolean {
+        if (!schema || typeof schema === "boolean") {
+            return false
+        }
+        const matches = (t: JSONSchemaTypeName | undefined) => t === type || (type === "number" && t === "integer")
+        return Array.isArray(schema.type) ? schema.type.some(matches) : matches(schema.type)
+    }
+
+    /**
+     * Build an enum schema of this object's property names (`"a" | "b" | "c"`). Handy to generate
+     * `sort` / field-selection parameters from a resource schema.
+     */
+    propertyNamesEnum<S = StringKeys<T>>(): SchemaBuilder<S> {
+        this.assertSimpleObjectSchema("propertyNamesEnum")
+        return SchemaBuilder.enumSchema(Object.keys(this.schemaObject.properties || {})) as any
+    }
+
+    /**
+     * Build an array schema whose items are this object's property names. Handy to generate
+     * a field-projection / sparse-fieldset parameter from a resource schema.
+     */
+    propertyNamesArray<S = StringKeys<T>>(): SchemaBuilder<S[]> {
+        this.assertSimpleObjectSchema("propertyNamesArray")
+        return SchemaBuilder.arraySchema(SchemaBuilder.enumSchema(Object.keys(this.schemaObject.properties || {}))) as any
+    }
+
+    /**
+     * Merge JSON Schema attributes (`description`, `default`, `examples`, ...) into several properties
+     * at once. The inferred TypeScript type is returned unchanged.
+     *
+     * @param attributes map of property name to the attributes to merge into that property
+     * @param options.deep when true, also descends into nested objects and `oneOf` / `anyOf` / `allOf`
+     *                     branches, applying the attributes to every matching property name found
+     */
+    setPropertiesAttributes(
+        attributes: Partial<Record<StringKeys<T>, Pick<JSONSchema, JSONSchemaCommonProperties>>> & {
+            [key: string]: Pick<JSONSchema, JSONSchemaCommonProperties>
+        },
+        options?: { deep?: boolean },
+    ): SchemaBuilder<{ [P in keyof T]: T[P] }> {
+        const attrs = attributes as Record<string, Pick<JSONSchema, JSONSchemaCommonProperties>>
+        const schemaObject = cloneJSON(this.schemaObject)
+        const apply = (s: JSONSchema) => {
+            if (!s.properties) {
+                return
+            }
+            for (const key of Object.keys(attrs)) {
+                const target = s.properties[key]
+                if (target && typeof target === "object") {
+                    Object.assign(target, cloneJSON(attrs[key]))
+                }
+            }
+        }
+        if (options?.deep) {
+            walkJsonSchema(schemaObject, (s) => apply(s))
+        } else {
+            apply(schemaObject)
+        }
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Set, append to, or prepend to the `description` of several properties at once. Keeping the
+     * description in sync with the schema and the type is central to building self-describing
+     * components. The inferred TypeScript type is returned unchanged.
+     *
+     * @param descriptions map of property name to its description
+     * @param options.mode "set" (default), "append" or "prepend" relative to any existing description
+     * @param options.separator string inserted between texts when appending/prepending (default " ")
+     * @param options.deep when true, also descends into nested objects and `oneOf` / `anyOf` / `allOf`
+     */
+    describeProperties(
+        descriptions: Partial<Record<StringKeys<T>, string>> & { [key: string]: string },
+        options?: { mode?: "set" | "append" | "prepend"; separator?: string; deep?: boolean },
+    ): SchemaBuilder<{ [P in keyof T]: T[P] }> {
+        const mode = options?.mode ?? "set"
+        const separator = options?.separator ?? " "
+        const desc = descriptions as Record<string, string>
+        const schemaObject = cloneJSON(this.schemaObject)
+        const apply = (s: JSONSchema) => {
+            if (!s.properties) {
+                return
+            }
+            for (const key of Object.keys(desc)) {
+                const target = s.properties[key]
+                if (target && typeof target === "object") {
+                    const existing = (target as JSONSchema).description
+                    if (mode === "append" && existing) {
+                        ;(target as JSONSchema).description = `${existing}${separator}${desc[key]}`
+                    } else if (mode === "prepend" && existing) {
+                        ;(target as JSONSchema).description = `${desc[key]}${separator}${existing}`
+                    } else {
+                        ;(target as JSONSchema).description = desc[key]
+                    }
+                }
+            }
+        }
+        if (options?.deep) {
+            walkJsonSchema(schemaObject, (s) => apply(s))
+        } else {
+            apply(schemaObject)
+        }
+        return new SchemaBuilder(schemaObject, this.validationConfig) as any
+    }
+
+    /**
+     * Narrow an enum schema to only the given values, keeping the schema and the type in sync.
+     *
+     * @param values the enum values to keep
+     */
+    pickEnumValues<K extends T>(values: readonly K[]): SchemaBuilder<K> {
+        this.assertEnumSchema("pickEnumValues")
+        const set = new Set<unknown>(values as readonly unknown[])
+        return this.rebuildEnum((this.schemaObject.enum as unknown[]).filter((v) => set.has(v))) as any
+    }
+
+    /**
+     * Remove the given values from an enum schema, keeping the schema and the type in sync.
+     *
+     * @param values the enum values to remove
+     */
+    omitEnumValues<K extends T>(values: readonly K[]): SchemaBuilder<Exclude<T, K>> {
+        this.assertEnumSchema("omitEnumValues")
+        const set = new Set<unknown>(values as readonly unknown[])
+        return this.rebuildEnum((this.schemaObject.enum as unknown[]).filter((v) => !set.has(v))) as any
+    }
+
+    /**
+     * Remap the values of an enum schema using a `{ oldValue: newValue }` map. Values not present in
+     * the map are left untouched.
+     *
+     * @param map an object mapping current enum values to their new values
+     */
+    mapEnumValues<const M extends Partial<Record<Extract<T, PropertyKey>, PropertyKey>>>(map: M): SchemaBuilder<MapEnumValues<T, M>> {
+        this.assertEnumSchema("mapEnumValues")
+        const m = map as Record<string, PropertyKey>
+        const mapped = (this.schemaObject.enum as unknown[]).map((v) => (v !== null && (v as PropertyKey) in m ? m[v as string] : v))
+        return this.rebuildEnum(mapped) as any
+    }
+
+    private assertEnumSchema(methodName: string): void {
+        if (!this.schemaObject || typeof this.schemaObject === "boolean" || !Array.isArray(this.schemaObject.enum)) {
+            throw new VError(`Schema Builder Error: '${methodName}' can only be used with an enum schema`)
+        }
+    }
+
+    private rebuildEnum(values: unknown[]): SchemaBuilder<any> {
+        const schemaObject = cloneRoot(this.schemaObject)
+        schemaObject.enum = values as any
+        const type = SchemaBuilder.typesForEnumValues(values)
+        if (type === undefined) {
+            delete schemaObject.type
+        } else {
+            schemaObject.type = type
+        }
+        return new SchemaBuilder(schemaObject, this.validationConfig)
+    }
+
+    private static typesForEnumValues(values: unknown[]): JSONSchemaTypeName | JSONSchemaTypeName[] | undefined {
+        const types = new Set<JSONSchemaTypeName>()
+        for (const value of values) {
+            if (value === null) {
+                types.add("null")
+            } else if (typeof value === "string") {
+                types.add("string")
+            } else if (typeof value === "boolean") {
+                types.add("boolean")
+            } else if (typeof value === "number") {
+                types.add("number")
+            }
+        }
+        const typesArray = [...types]
+        return typesArray.length === 0 ? undefined : typesArray.length === 1 ? typesArray[0] : typesArray
+    }
+
+    /**
+     * Extract a single branch from a discriminated `oneOf` schema (as built by `oneOfDiscriminated`)
+     * by the value of its discriminator property.
+     *
+     * @param propertyName the discriminator property
+     * @param tagValue the value identifying the branch to extract
+     */
+    narrowDiscriminated<P extends keyof T & string, V extends Extract<T[P], string | number | boolean | null>>(
+        propertyName: P,
+        tagValue: V,
+    ): SchemaBuilder<Extract<T, { [Q in P]: V }>> {
+        if (typeof this.schemaObject === "boolean" || !Array.isArray(this.schemaObject.oneOf)) {
+            throw new VError(`Schema Builder Error: 'narrowDiscriminated' can only be used with a oneOf schema`)
+        }
+        const branches = this.schemaObject.oneOf as JSONSchema[]
+        const match = branches.find((b) => {
+            const tagSchema = b && typeof b === "object" && b.properties ? (b.properties[propertyName] as JSONSchema | undefined) : undefined
+            if (!tagSchema) {
+                return false
+            }
+            return tagSchema.const === tagValue || (Array.isArray(tagSchema.enum) && tagSchema.enum.length === 1 && tagSchema.enum[0] === tagValue)
+        })
+        if (!match) {
+            throw new VError(`Schema Builder Error: 'narrowDiscriminated' found no branch where '${propertyName}' is '${String(tagValue)}'`)
+        }
+        return new SchemaBuilder(cloneJSON(match), this.validationConfig) as any
     }
 
     /**

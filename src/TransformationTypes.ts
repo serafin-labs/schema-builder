@@ -317,3 +317,134 @@ export type ObjectSchemaDefinition<T extends { [k: string]: SchemaBuilder<any> |
         }) extends infer O
         ? { [K in keyof O]: O[K] } // force re-indexing the properties to avoid the '&'
         : never
+
+/**
+ * Replace the type of properties `K` of `T` by `U` (without keeping the original type).
+ * This is the "don't keep original" counterpart of {@link TransformProperties}.
+ */
+export type TransformPropertiesReplace<T, K extends keyof T, U> = Omit<T, K> & { [P in K]: U }
+
+/**
+ * Replace the type of properties `K` of `T` by an array of their non-nullable type
+ * (without keeping the original type). Already-array properties are left untouched.
+ * This is the "don't keep original" counterpart of {@link TransformPropertiesToArray}.
+ */
+export type TransformPropertiesToArrayReplace<T, K extends keyof T> = Omit<T, K> & {
+    [P in K]: T[P] extends any[] ? T[P] : NonNullable<T[P]>[]
+}
+
+/**
+ * Replace the type of array properties `K` of `T` by their element type
+ * (without keeping the original array type). Non-array properties are left untouched.
+ * This is the "don't keep original" counterpart of {@link UnwrapArrayProperties}.
+ */
+export type UnwrapArrayPropertiesReplace<T, K extends keyof T> = Omit<T, K> & {
+    [P in K]: T[P] extends Array<infer A> ? A : T[P]
+}
+
+/**
+ * Rename the keys of `T` according to a map of `{ oldName: "newName" }`. Keys not present in
+ * the map are left untouched. Optionality of each property is preserved.
+ */
+export type RenameProperties<T, M extends { [P in keyof T]?: PropertyKey }> = {
+    [K in keyof T as K extends keyof M ? (M[K] extends PropertyKey ? M[K] : K) : K]: T[K]
+}
+
+/**
+ * Prefix the (string) keys `K` of `T` with `Prefix`. Other keys, and non-string keys, are
+ * left untouched. Optionality is preserved. When `CAP` is `true` the first character of the
+ * original key is upper-cased so the result stays camelCase (`user` + `id` -> `userId`).
+ */
+export type PrefixProperties<T, Prefix extends string, K extends keyof T = keyof T, CAP extends boolean = false> = {
+    [P in keyof T as P extends K ? (P extends string ? `${Prefix}${CAP extends true ? Capitalize<P> : P}` : P) : P]: T[P]
+}
+
+/**
+ * Suffix the (string) keys `K` of `T` with `Suffix`. Other keys, and non-string keys, are
+ * left untouched. Optionality is preserved.
+ */
+export type SuffixProperties<T, Suffix extends string, K extends keyof T = keyof T> = {
+    [P in keyof T as P extends K ? (P extends string ? `${P}${Suffix}` : P) : P]: T[P]
+}
+
+/**
+ * Name of the property generated for enum value `V` by `expandEnumToProperties`.
+ * When a prefix is given the value is capitalized to keep a camelCase boundary
+ * (`is` + `pending` -> `isPending`); without a prefix it is kept as-is so a suffix
+ * reads naturally (`pending` + `Date` -> `pendingDate`).
+ */
+export type ExpandEnumKey<V extends string, Prefix extends string, Suffix extends string> = `${Prefix}${Prefix extends "" ? V : Capitalize<V>}${Suffix}`
+
+/**
+ * Generate one property per value of the (string) enum union `Values`, named by
+ * {@link ExpandEnumKey} and typed `U`. Used by `expandEnumToProperties`.
+ */
+export type ExpandEnumToProperties<T, Values extends string, U, Prefix extends string, Suffix extends string, REQUIRED extends boolean> = T &
+    (REQUIRED extends false
+        ? { [V in Values as ExpandEnumKey<V, Prefix, Suffix>]?: U }
+        : { [V in Values as ExpandEnumKey<V, Prefix, Suffix>]: U })
+
+/**
+ * Convert a JSON Schema `type` keyword to the matching TypeScript type, used by
+ * `pickByType` / `omitByType`. `integer` maps to `number` since TypeScript has no integer type.
+ */
+export type JSONTypeToTS<TYPE extends string> = TYPE extends "string"
+    ? string
+    : TYPE extends "number" | "integer"
+      ? number
+      : TYPE extends "boolean"
+        ? boolean
+        : TYPE extends "null"
+          ? null
+          : TYPE extends "array"
+            ? readonly any[]
+            : TYPE extends "object"
+              ? object
+              : never
+
+/**
+ * Convert a delimited identifier (`snake_case`, `kebab-case`) to `camelCase` at the type level.
+ * Only instantiated when `toCamelCaseKeys` is actually used.
+ */
+export type CamelCase<S extends string> = S extends `${infer H}_${infer T}`
+    ? `${H}${Capitalize<CamelCase<T>>}`
+    : S extends `${infer H}-${infer T}`
+      ? `${H}${Capitalize<CamelCase<T>>}`
+      : S
+
+/**
+ * Internal helper for {@link SnakeCase}: insert `_` before each uppercase letter and lowercase it.
+ */
+type SnakeCaseInner<S extends string> = S extends `${infer C}${infer Rest}`
+    ? C extends Uppercase<C>
+        ? C extends Lowercase<C> // non-letter (digit / symbol): Uppercase === Lowercase
+            ? `${C}${SnakeCaseInner<Rest>}`
+            : `_${Lowercase<C>}${SnakeCaseInner<Rest>}`
+        : `${C}${SnakeCaseInner<Rest>}`
+    : S
+
+/**
+ * Convert a `camelCase` / `PascalCase` identifier to `snake_case` at the type level.
+ * This is the heavier of the two conversions (per-character recursion) and is only
+ * instantiated when `toSnakeCaseKeys` is actually used.
+ */
+export type SnakeCase<S extends string> = SnakeCaseInner<S> extends `_${infer R}` ? R : SnakeCaseInner<S>
+
+/**
+ * Apply a key transformation (`CamelCase` / `SnakeCase`) to every string key of `T`,
+ * preserving optionality and value types.
+ */
+export type CamelCaseKeys<T> = { [K in keyof T as K extends string ? CamelCase<K> : K]: T[K] }
+export type SnakeCaseKeys<T> = { [K in keyof T as K extends string ? SnakeCase<K> : K]: T[K] }
+
+/**
+ * Remap the literal values of an enum union `T` according to a map of `{ oldValue: newValue }`.
+ * Values not present in the map are left untouched. Distributes over the union.
+ */
+export type MapEnumValues<T, M extends Partial<Record<Extract<T, PropertyKey>, PropertyKey>>> = T extends PropertyKey
+    ? T extends keyof M
+        ? M[T] extends PropertyKey
+            ? M[T]
+            : T
+        : T
+    : T

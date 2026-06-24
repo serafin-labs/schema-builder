@@ -24,6 +24,26 @@ type Level = typeof level.T
 
 As a property: `addEnum(name, values, keywords?, required?, nullable?)`.
 
+### Narrowing & remapping enum values
+
+Derive a new enum from an existing one without losing the schema/type sync. `pickEnumValues` keeps a subset, `omitEnumValues` drops some, and `mapEnumValues` rewrites values through a `{ old: new }` map. The `type` keyword is recomputed from the remaining values:
+
+```ts twoslash
+import { SB } from "@serafin/schema-builder"
+
+const status = SB.enumSchema(["draft", "published", "archived"])
+
+const visible = status.omitEnumValues(["archived"])
+```
+
+```ts twoslash
+import { SB } from "@serafin/schema-builder"
+// ---cut---
+const level = SB.enumSchema(["low", "high"]).mapEnumValues({ low: "LOW" })
+
+type Level = typeof level.T
+```
+
 ## Const
 
 `constSchema(value)` pins a schema to a single literal value — useful for discriminants and narrowing:
@@ -82,3 +102,20 @@ type Shape = typeof shape.T
 ```
 
 Each variant gains a required `kind` property set to its key (`{ kind: "circle" } & { radius: number }`, etc.), so TypeScript can narrow on `kind`.
+
+### Extracting a single variant
+
+`narrowDiscriminated(propertyName, tagValue)` pulls one branch back out of a discriminated union as its own object builder:
+
+```ts twoslash
+import { SB } from "@serafin/schema-builder"
+
+const shape = SB.oneOfDiscriminated("kind", {
+    circle: SB.objectSchema({}, { radius: SB.numberSchema() }),
+    rectangle: SB.objectSchema({}, { width: SB.numberSchema(), height: SB.numberSchema() }),
+})
+
+const circle = shape.narrowDiscriminated("kind", "circle")
+
+type Circle = typeof circle.T
+```

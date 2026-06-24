@@ -2153,6 +2153,268 @@ describe("Schema Builder", function () {
     })
 })
 
+describe("Schema Builder - advanced transformations", function () {
+    const resource = () =>
+        SB.objectSchema(
+            {},
+            {
+                id: SB.stringSchema(),
+                age: SB.integerSchema(),
+                active: SB.booleanSchema(),
+                state: SB.enumSchema(["pending", "approved", "canceled"]),
+                tags: SB.arraySchema(SB.stringSchema()),
+            },
+        )
+
+    describe("keepOriginal option", function () {
+        it("transformProperties replaces the type when keepOriginal is false", function () {
+            const s = SB.emptySchema().addString("id").transformProperties(SB.numberSchema(), ["id"], { keepOriginal: false })
+            expect(s.schema.properties!.id).to.deep.equal({ type: "number" })
+            expect(() => s.validate({ id: 1 } as any)).to.not.throw()
+            expect(() => s.validate({ id: "abc" } as any)).to.throw()
+        })
+
+        it("transformProperties keeps a oneOf by default", function () {
+            const s = SB.emptySchema().addString("id").transformProperties(SB.numberSchema(), ["id"])
+            expect(s.schema.properties!.id).to.have.property("oneOf")
+            expect(() => s.validate({ id: 1 } as any)).to.not.throw()
+            expect(() => s.validate({ id: "abc" })).to.not.throw()
+        })
+
+        it("transformPropertiesToArray replaces with an array when keepOriginal is false", function () {
+            const s = SB.emptySchema().addString("s").transformPropertiesToArray(["s"], { minItems: 1 }, { keepOriginal: false })
+            expect((s.schema.properties!.s as JSONSchema).type).to.equal("array")
+            expect(() => s.validate({ s: ["a"] } as any)).to.not.throw()
+            expect(() => s.validate({ s: "a" } as any)).to.throw()
+        })
+
+        it("unwrapArrayProperties replaces with the element type when keepOriginal is false", function () {
+            const s = SB.emptySchema().addArray("a", SB.booleanSchema()).unwrapArrayProperties(["a"], { keepOriginal: false })
+            expect((s.schema.properties!.a as JSONSchema).type).to.equal("boolean")
+            expect(() => s.validate({ a: true } as any)).to.not.throw()
+            expect(() => s.validate({ a: [true] } as any)).to.throw()
+        })
+    })
+
+    describe("renameProperties / prefixProperties / suffixProperties", function () {
+        it("renames several properties at once and keeps required in sync", function () {
+            const s = resource().renameProperties({ id: "userId", age: "years" })
+            expect(Object.keys(s.schema.properties!).sort()).to.deep.equal(["active", "state", "tags", "userId", "years"])
+            expect(s.schema.required).to.include.members(["userId", "years", "active"])
+            expect(s.schema.required).to.not.include("id")
+        })
+
+        it("throws when renaming an unknown property", function () {
+            expect(() => resource().renameProperties({ nope: "x" } as any)).to.throw()
+        })
+
+        it("throws when a rename collides with an existing name", function () {
+            expect(() => resource().renameProperties({ id: "age" } as any)).to.throw()
+        })
+
+        it("prefixes all properties or a subset", function () {
+            expect(Object.keys(resource().prefixProperties("user", ["id"]).schema.properties!)).to.include("userid")
+            const all = resource().prefixProperties("_")
+            expect(Object.keys(all.schema.properties!)).to.deep.equal(["_id", "_age", "_active", "_state", "_tags"])
+        })
+
+        it("capitalizes the original key when { capitalize: true } is given", function () {
+            const s = resource().prefixProperties("user", ["id"], { capitalize: true })
+            expect(Object.keys(s.schema.properties!)).to.include("userId")
+            expect(Object.keys(s.schema.properties!)).to.not.include("userid")
+            // type-level: the key is `userId`, not `userid`
+            const userId: SchemaBuilder<string> = s.objectProperties.userId
+            expect(userId.schema).to.deep.equal({ type: "string" })
+        })
+
+        it("suffixes a subset of properties", function () {
+            const s = resource().suffixProperties("Date", ["state"])
+            expect(Object.keys(s.schema.properties!)).to.include("stateDate")
+            expect(Object.keys(s.schema.properties!)).to.not.include("state")
+        })
+    })
+
+    describe("expandEnumToProperties", function () {
+        it("generates one suffixed property per enum value", function () {
+            const s = resource().expandEnumToProperties("state", SB.stringSchema({ format: "date-time" }), { suffix: "Date" })
+            expect(Object.keys(s.schema.properties!)).to.include.members(["pendingDate", "approvedDate", "canceledDate"])
+            expect(s.schema.required).to.include.members(["pendingDate", "approvedDate", "canceledDate"])
+            expect(s.schema.properties!.state).to.exist
+        })
+
+        it("capitalizes the value when a prefix is given and honors required:false", function () {
+            const s = resource().expandEnumToProperties("state", SB.booleanSchema(), { prefix: "is", required: false })
+            expect(Object.keys(s.schema.properties!)).to.include.members(["isPending", "isApproved", "isCanceled"])
+            expect(s.schema.required ?? []).to.not.include("isPending")
+        })
+
+        it("reads the enum from a nested property via an accessor resolver and infers its type", function () {
+            const s = SB.objectSchema(
+                {},
+                {
+                    meta: SB.objectSchema({}, { state: SB.enumSchema(["on", "off"]) }),
+                },
+            ).expandEnumToProperties((pa) => pa.meta.state, SB.stringSchema(), { suffix: "At" })
+            expect(Object.keys(s.schema.properties!)).to.include.members(["onAt", "offAt"])
+            // type-level: the generated keys are inferred from the nested enum
+            const onAt: SchemaBuilder<string> = s.objectProperties.onAt
+            const offAt: SchemaBuilder<string> = s.objectProperties.offAt
+            expect(onAt.schema).to.deep.equal({ type: "string" })
+            expect(offAt.schema).to.deep.equal({ type: "string" })
+        })
+
+        it("throws when no enum is found at the resolved path", function () {
+            expect(() => resource().expandEnumToProperties((pa) => pa.tags, SB.stringSchema())).to.throw()
+        })
+    })
+
+    describe("omitReadOnlyProperties / omitWriteOnlyProperties", function () {
+        it("removes readOnly properties from the emitted schema", function () {
+            const s = SB.emptySchema().addString("id", { readOnly: true }).addString("name").omitReadOnlyProperties()
+            expect(Object.keys(s.schema.properties!)).to.deep.equal(["name"])
+            expect(s.schema.required ?? []).to.not.include("id")
+        })
+
+        it("removes writeOnly properties from the emitted schema", function () {
+            const s = SB.emptySchema().addString("password", { writeOnly: true }).addString("name").omitWriteOnlyProperties()
+            expect(Object.keys(s.schema.properties!)).to.deep.equal(["name"])
+        })
+    })
+
+    describe("pickByType / omitByType", function () {
+        it("keeps only properties of the given JSON type", function () {
+            expect(Object.keys(resource().pickByType("string").schema.properties!).sort()).to.deep.equal(["id", "state"])
+            expect(Object.keys(resource().pickByType("boolean").schema.properties!)).to.deep.equal(["active"])
+        })
+
+        it("matches integer when picking number", function () {
+            expect(Object.keys(resource().pickByType("number").schema.properties!)).to.deep.equal(["age"])
+        })
+
+        it("omits properties of the given JSON type", function () {
+            expect(Object.keys(resource().omitByType("string").schema.properties!).sort()).to.deep.equal(["active", "age", "tags"])
+        })
+    })
+
+    describe("propertyNamesEnum / propertyNamesArray", function () {
+        it("builds an enum schema of the property names", function () {
+            const s = resource().propertyNamesEnum()
+            expect(s.schema.enum).to.deep.equal(["id", "age", "active", "state", "tags"])
+            expect(() => s.validate("id" as any)).to.not.throw()
+            expect(() => s.validate("nope" as any)).to.throw()
+        })
+
+        it("builds an array schema of the property names", function () {
+            const s = resource().propertyNamesArray()
+            expect(s.schema.type).to.equal("array")
+            expect(() => s.validate(["id", "age"] as any)).to.not.throw()
+            expect(() => s.validate(["nope"] as any)).to.throw()
+        })
+    })
+
+    describe("toCamelCaseKeys / toSnakeCaseKeys", function () {
+        it("converts snake_case and kebab-case keys to camelCase", function () {
+            const s = SB.objectSchema({}, { first_name: SB.stringSchema(), "is-active": SB.booleanSchema() }).toCamelCaseKeys()
+            expect(Object.keys(s.schema.properties!)).to.deep.equal(["firstName", "isActive"])
+        })
+
+        it("converts camelCase keys to snake_case and round-trips", function () {
+            const camel = SB.objectSchema({}, { firstName: SB.stringSchema(), isActive: SB.booleanSchema() })
+            const snake = camel.toSnakeCaseKeys()
+            expect(Object.keys(snake.schema.properties!)).to.deep.equal(["first_name", "is_active"])
+            expect(Object.keys(snake.toCamelCaseKeys().schema.properties!)).to.deep.equal(["firstName", "isActive"])
+        })
+    })
+
+    describe("describeProperties / setPropertiesAttributes", function () {
+        it("sets descriptions on the matching top-level properties", function () {
+            const s = resource().describeProperties({ id: "The identifier", age: "Age in years" })
+            expect((s.schema.properties!.id as JSONSchema).description).to.equal("The identifier")
+            expect((s.schema.properties!.age as JSONSchema).description).to.equal("Age in years")
+        })
+
+        it("appends and prepends to an existing description", function () {
+            const base = SB.emptySchema().addString("id", { description: "id" })
+            expect((base.describeProperties({ id: "(uuid)" }, { mode: "append" }).schema.properties!.id as JSONSchema).description).to.equal("id (uuid)")
+            expect((base.describeProperties({ id: "uuid:" }, { mode: "prepend" }).schema.properties!.id as JSONSchema).description).to.equal("uuid: id")
+        })
+
+        it("descends into oneOf branches when deep is true", function () {
+            const s = SB.oneOf(
+                SB.objectSchema({}, { id: SB.stringSchema() }),
+                SB.objectSchema({}, { id: SB.numberSchema(), other: SB.stringSchema() }),
+            ).describeProperties({ id: "Identifier" }, { deep: true })
+            const branches = s.schema.oneOf as JSONSchema[]
+            expect((branches[0].properties!.id as JSONSchema).description).to.equal("Identifier")
+            expect((branches[1].properties!.id as JSONSchema).description).to.equal("Identifier")
+        })
+
+        it("does not descend by default", function () {
+            const s = SB.oneOf(SB.objectSchema({}, { id: SB.stringSchema() })).describeProperties({ id: "x" } as any)
+            const branches = s.schema.oneOf as JSONSchema[]
+            expect((branches[0].properties!.id as JSONSchema).description).to.be.undefined
+        })
+
+        it("merges arbitrary attributes", function () {
+            const s = resource().setPropertiesAttributes({ age: { default: 18, description: "years" } })
+            expect((s.schema.properties!.age as JSONSchema).default).to.equal(18)
+            expect((s.schema.properties!.age as JSONSchema).description).to.equal("years")
+        })
+    })
+
+    describe("pickEnumValues / omitEnumValues / mapEnumValues", function () {
+        const colors = () => SB.enumSchema(["red", "green", "blue"])
+
+        it("narrows an enum to the kept values", function () {
+            const s = colors().pickEnumValues(["red", "blue"])
+            expect(s.schema.enum).to.deep.equal(["red", "blue"])
+            expect(() => s.validate("green" as any)).to.throw()
+        })
+
+        it("removes the given enum values", function () {
+            const s = colors().omitEnumValues(["green"])
+            expect(s.schema.enum).to.deep.equal(["red", "blue"])
+        })
+
+        it("remaps enum values", function () {
+            const s = colors().mapEnumValues({ red: "RED" })
+            expect(s.schema.enum).to.deep.equal(["RED", "green", "blue"])
+        })
+
+        it("recomputes the type when values of a different type are removed", function () {
+            const s = SB.enumSchema(["a", 1, true]).omitEnumValues([1, true])
+            expect(s.schema.type).to.equal("string")
+        })
+
+        it("throws when used on a non-enum schema", function () {
+            expect(() => SB.stringSchema().pickEnumValues(["a"] as any)).to.throw()
+        })
+    })
+
+    describe("narrowDiscriminated", function () {
+        const shape = () =>
+            SB.oneOfDiscriminated("kind", {
+                circle: SB.objectSchema({}, { radius: SB.numberSchema() }),
+                square: SB.objectSchema({}, { side: SB.numberSchema() }),
+            })
+
+        it("extracts the matching branch", function () {
+            const circle = shape().narrowDiscriminated("kind", "circle")
+            expect(Object.keys(circle.schema.properties!)).to.include.members(["radius", "kind"])
+            expect(() => circle.validate({ kind: "circle", radius: 2 } as any)).to.not.throw()
+            expect(() => circle.validate({ kind: "square", side: 2 } as any)).to.throw()
+        })
+
+        it("throws when no branch matches", function () {
+            expect(() => shape().narrowDiscriminated("kind", "triangle" as any)).to.throw()
+        })
+
+        it("throws when not a oneOf schema", function () {
+            expect(() => SB.stringSchema().narrowDiscriminated("x" as any, "y" as any)).to.throw()
+        })
+    })
+})
+
 describe("Test Side Effects With global AJV config", function () {
     it("should change the global configuration of validation an validate differently", function () {
         SB.setGlobalValidationConfig({ allErrors: true })
