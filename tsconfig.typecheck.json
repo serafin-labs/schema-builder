@@ -1,0 +1,12 @@
+{
+    "extends": "./tsconfig.base.json",
+    "exclude": ["node_modules"],
+    "compilerOptions": {
+        "moduleResolution": "bundler",
+        "module": "esnext",
+        "target": "esnext",
+        "incremental": false,
+        "noEmit": true,
+        "types": ["mocha", "node"]
+    }
+}

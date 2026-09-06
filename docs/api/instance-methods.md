@@ -35,7 +35,7 @@ See [Object Schemas](../guide/objects).
 | `propertyNamesEnum()` / `propertyNamesArray()` | Reflect property names into an `enum` / array schema. |
 | `getSubschema(name)` | Extract a property as its own builder. |
 | `getItemsSubschema()` | Extract the item schema of an array (non-tuple `items` only). |
-| `objectProperties` | _(getter)_ Extract all properties as an `objectSchema`-style map for spreading. Traverses `allOf`/`anyOf`/`oneOf`. |
+| `objectProperties()` | Extract all properties as an `objectSchema`-style map for spreading. Traverses `allOf`/`anyOf`/`oneOf`. |
 
 See [Picking & Omitting](../guide/pick-omit) and [Composing with objectProperties](../guide/object-properties).
 

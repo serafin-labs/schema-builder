@@ -170,7 +170,7 @@ export class SchemaBuilder<T> {
     }
 
     /**
-     * Internal helper backing the `objectProperties` getter. Recursively collects the effective
+     * Internal helper backing the `objectProperties` method. Recursively collects the effective
      * `{ properties, required }` of a (possibly composed) object schema by combining the schema's own
      * `properties` with the contributions of its `allOf`/`anyOf`/`oneOf` branches. See `objectProperties`
      * for the combination semantics. Returned schemas may share references with `schema`; callers that
@@ -1793,7 +1793,7 @@ export class SchemaBuilder<T> {
     /**
      * Extract the properties of this object schema as a property-definition map, formatted the same
      * way `objectSchema` / `addProperties` expect their input. It is meant to be spread to compose new schemas, e.g.
-     * `SB.objectSchema({}, { ...a.objectProperties, ...b.objectProperties })`.
+     * `SB.objectSchema({}, { ...a.objectProperties(), ...b.objectProperties() })`.
      *
      * Each entry is a `SchemaBuilder` when the property is required, or a `[SchemaBuilder, undefined]`
      * tuple when it is optional (the same optional marker `objectSchema` recognises). Every returned
@@ -1811,18 +1811,26 @@ export class SchemaBuilder<T> {
      * Identical contributions are de-duplicated rather than wrapped. Safe to call on any schema: when the
      * schema is not an object and uses no composition keywords (e.g. a string or array schema), it returns
      * an empty map, so it can be spread unconditionally.
+     *
+     * This is a method rather than a getter, and resolves `T` through `this` rather than naming it
+     * directly, on purpose: `PropertiesOf<T>` cannot be evaluated while `T` is an unresolved type
+     * parameter, and a member whose declared type mentions `T` that way makes every `SchemaBuilder<T>`
+     * opaque to structural comparison. That would break generic callers, for which
+     * `SchemaBuilder<A & B>` would stop being assignable to `SchemaBuilder<A>`. Keeping `T` out of the
+     * declared member type preserves that relation while still resolving precisely at each call site.
      */
-    get objectProperties(): PropertiesOf<T> {
-        if (!this.isObjectSchema && !this.hasSchemasCombinationKeywords) {
-            return {} as PropertiesOf<T>
+    objectProperties<S extends SchemaBuilder<any>>(this: S): PropertiesOf<S extends SchemaBuilder<infer U> ? U : never> {
+        const self = this as SchemaBuilder<any>
+        if (!self.isObjectSchema && !self.hasSchemasCombinationKeywords) {
+            return {} as any
         }
-        const { properties, required } = SchemaBuilder.collectObjectProperties(this.schemaObject)
+        const { properties, required } = SchemaBuilder.collectObjectProperties(self.schemaObject)
         const result: { [key: string]: SchemaBuilder<any> | [SchemaBuilder<any>, undefined] } = {}
         for (const key in properties) {
             const builder = new SchemaBuilder(cloneJSON(properties[key]))
             result[key] = required.indexOf(key) !== -1 ? builder : [builder, undefined]
         }
-        return result as PropertiesOf<T>
+        return result as any
     }
 
     /**

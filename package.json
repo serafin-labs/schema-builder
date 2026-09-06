@@ -77,11 +77,12 @@
         "build:esm": "tsc",
         "fix": "echo '{ \"type\": \"module\" }' > lib/esm/package.json && echo '{ \"type\": \"commonjs\" }' > lib/cjs/package.json",
         "check:exports": "node scripts/check-build-exports.mjs",
+        "typecheck": "tsc --project tsconfig.typecheck.json",
         "predocs:dev": "npm run build:esm",
         "docs:dev": "vitepress dev docs",
         "predocs:build": "npm run build:esm",
         "docs:build": "vitepress build docs",
         "docs:preview": "vitepress preview docs",
-        "prepublishOnly": "npm install && rm -rf ./lib && npm run build && npm test && npm run check:exports"
+        "prepublishOnly": "npm install && rm -rf ./lib && npm run build && npm run typecheck && npm test && npm run check:exports"
     }
 }

@@ -22,8 +22,8 @@ const contact = SB.objectSchema({}, { email: SB.stringSchema({ format: "email" }
 const customer = SB.objectSchema(
     { title: "Customer" },
     {
-        ...address.objectProperties,
-        ...contact.objectProperties,
+        ...address.objectProperties(),
+        ...contact.objectProperties(),
         id: SB.stringSchema(),
     },
 )
@@ -53,7 +53,7 @@ const base = SB.objectSchema({}, { name: SB.stringSchema() })
 const renamed = SB.objectSchema(
     {},
     {
-        fullName: base.objectProperties.name, // a SchemaBuilder<string>
+        fullName: base.objectProperties().name, // a SchemaBuilder<string>
     },
 )
 ```
@@ -80,7 +80,7 @@ const shape = SB.oneOf(
     SB.objectSchema({}, { kind: SB.constSchema("b"), value: SB.numberSchema() }),
 )
 
-const value = shape.objectProperties.value
+const value = shape.objectProperties().value
 // value.schema === { oneOf: [{ type: "string" }, { type: "number" }] }
 ```
 
@@ -108,6 +108,6 @@ import { SB, SchemaBuilder } from "@serafin/schema-builder"
 // ---cut---
 function withId(s: SchemaBuilder<any>) {
     // If `s` is not an object schema, its objectProperties spread contributes nothing.
-    return SB.objectSchema({}, { ...s.objectProperties, id: SB.stringSchema() })
+    return SB.objectSchema({}, { ...s.objectProperties(), id: SB.stringSchema() })
 }
 ```

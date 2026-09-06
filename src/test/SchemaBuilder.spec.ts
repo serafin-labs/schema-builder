@@ -1178,8 +1178,10 @@ describe("Schema Builder", function () {
             ).to.not.throw()
             expect(() =>
                 stringEnumSchema.validate({
+                    // @ts-expect-error deliberately outside the enum: the type rejects it and so must validation
                     enumArrayUniqueValueString: "baz",
                     enumArrayUniqueConstValueString: "foo",
+                    // @ts-expect-error deliberately outside the enum: the type rejects it and so must validation
                     enumArrayMultipleValuesString: "baz",
                     enumArrayMultipleConstValuesString: "foo",
                 }),
@@ -2041,7 +2043,7 @@ describe("Schema Builder", function () {
                     age: [SB.integerSchema(), undefined],
                 },
             )
-            const properties = userSchema.objectProperties
+            const properties = userSchema.objectProperties()
             expect(properties.id).to.be.instanceOf(SchemaBuilder)
             expect(properties.id.schema).to.deep.equal({ type: "string" })
             expect(Array.isArray(properties.age)).to.equal(true)
@@ -2052,7 +2054,7 @@ describe("Schema Builder", function () {
         it("can be spread to compose a new object schema that round-trips the type", function () {
             const a = SB.objectSchema({}, { id: SB.stringSchema(), age: [SB.integerSchema(), undefined] })
             const b = SB.objectSchema({}, { active: SB.booleanSchema() })
-            const composed = SB.objectSchema({ title: "Composed" }, { ...a.objectProperties, ...b.objectProperties })
+            const composed = SB.objectSchema({ title: "Composed" }, { ...a.objectProperties(), ...b.objectProperties() })
             type Composed = typeof composed.T
             const value: Composed = { id: "x", active: true }
             expect(() => composed.validate(value)).to.not.throw()
@@ -2067,7 +2069,7 @@ describe("Schema Builder", function () {
 
         it("returns deep copies that do not affect the source schema when mutated", function () {
             const source = SB.objectSchema({}, { nested: SB.objectSchema({}, { v: SB.stringSchema() }) })
-            const extracted = source.objectProperties.nested
+            const extracted = source.objectProperties().nested
             const mutated = extracted.addNumber("extra")
             expect(mutated.schema).to.not.equal(source.schema.properties!.nested)
             expect((source.schema.properties!.nested as JSONSchema).properties).to.deep.equal({ v: { type: "string" } })
@@ -2078,7 +2080,7 @@ describe("Schema Builder", function () {
                 SB.objectSchema({}, { value: SB.stringSchema(), kind: SB.constSchema("a") }),
                 SB.objectSchema({}, { value: SB.numberSchema(), kind: SB.constSchema("b") }),
             )
-            const properties = schema.objectProperties
+            const properties = schema.objectProperties()
             // The union (oneOf) is collapsed into a single map: each shared property's type is the
             // union of its per-branch types, not a union of two property maps.
             const value: SchemaBuilder<string | number> = properties.value
@@ -2093,7 +2095,7 @@ describe("Schema Builder", function () {
                 SB.objectSchema({}, { shared: SB.stringSchema(), a: SB.numberSchema() }),
                 SB.objectSchema({}, { shared: SB.stringSchema(), b: SB.numberSchema() }),
             )
-            const properties = schema.objectProperties
+            const properties = schema.objectProperties()
             // identical 'shared' schema in both branches -> single string schema, not a oneOf
             expect(properties.shared.schema).to.deep.equal({ type: "string" })
             // 'a' only exists in one branch -> optional (intersection of required is empty)
@@ -2102,14 +2104,14 @@ describe("Schema Builder", function () {
 
         it("treats a property required in every oneOf branch as required and others as optional", function () {
             const schema = SB.oneOf(SB.objectSchema({}, { id: SB.stringSchema(), only: SB.numberSchema() }), SB.objectSchema({}, { id: SB.stringSchema() }))
-            const properties = schema.objectProperties
+            const properties = schema.objectProperties()
             expect(properties.id).to.be.instanceOf(SchemaBuilder)
             expect(Array.isArray(properties.only)).to.equal(true)
         })
 
         it("merges allOf branches with union of required properties", function () {
             const schema = SB.allOf(SB.objectSchema({}, { a: SB.stringSchema() }), SB.objectSchema({}, { b: [SB.numberSchema(), undefined] }))
-            const properties = schema.objectProperties
+            const properties = schema.objectProperties()
             expect(properties.a).to.be.instanceOf(SchemaBuilder)
             expect(Array.isArray(properties.b)).to.equal(true)
         })
@@ -2119,7 +2121,7 @@ describe("Schema Builder", function () {
                 SB.objectSchema({}, { value: SB.stringSchema({ minLength: 1 }) }),
                 SB.objectSchema({}, { value: SB.stringSchema({ maxLength: 5 }) }),
             )
-            const properties = schema.objectProperties
+            const properties = schema.objectProperties()
             expect(properties.value.schema).to.deep.equal({
                 allOf: [
                     { type: "string", minLength: 1 },
@@ -2139,16 +2141,32 @@ describe("Schema Builder", function () {
                 required: ["own"],
                 allOf: [{ type: "object", properties: { extra: { type: "number" } }, required: ["extra"] }],
             })
-            const properties = mixed.objectProperties as Record<string, SchemaBuilder<any> | [SchemaBuilder<any>, undefined]>
+            const properties = mixed.objectProperties() as Record<string, SchemaBuilder<any> | [SchemaBuilder<any>, undefined]>
             expect(properties.own).to.be.instanceOf(SchemaBuilder)
             expect(properties.extra).to.be.instanceOf(SchemaBuilder)
             expect(schema.schema).to.exist
         })
 
         it("returns an empty map when used on a non-object schema", function () {
-            expect(SB.stringSchema().objectProperties).to.deep.equal({})
-            expect(SB.numberSchema().objectProperties).to.deep.equal({})
-            expect(SB.arraySchema(SB.stringSchema()).objectProperties).to.deep.equal({})
+            expect(SB.stringSchema().objectProperties()).to.deep.equal({})
+            expect(SB.numberSchema().objectProperties()).to.deep.equal({})
+            expect(SB.arraySchema(SB.stringSchema()).objectProperties()).to.deep.equal({})
+        })
+
+        it("keeps SchemaBuilder structurally comparable under an unresolved type parameter", function () {
+            // Compile-time regression guard. A member whose *declared* type names `T` through a type
+            // that cannot be evaluated while `T` is an unresolved type parameter (as `PropertiesOf<T>`
+            // cannot) makes every `SchemaBuilder<T>` opaque to structural comparison, and generic
+            // callers lose `SchemaBuilder<A & B>` -> `SchemaBuilder<A>`. `@serafin/pipeline` relies on
+            // exactly this when it widens a schema with a relation's option and hands it back where the
+            // un-widened builder is expected. If this stops compiling, a member has reintroduced `T`.
+            function widen<A extends object>(sb: SchemaBuilder<A>): SchemaBuilder<A> {
+                return sb.addProperty("withFoo", SB.booleanSchema(), false)
+            }
+
+            const widened = widen(SB.objectSchema({}, { id: SB.stringSchema() }))
+            expect(widened.schema.properties).to.have.keys("id", "withFoo")
+            expect(widened.schema.required).to.eql(["id"])
         })
     })
 })
@@ -2223,7 +2241,7 @@ describe("Schema Builder - advanced transformations", function () {
             expect(Object.keys(s.schema.properties!)).to.include("userId")
             expect(Object.keys(s.schema.properties!)).to.not.include("userid")
             // type-level: the key is `userId`, not `userid`
-            const userId: SchemaBuilder<string> = s.objectProperties.userId
+            const userId: SchemaBuilder<string> = s.objectProperties().userId
             expect(userId.schema).to.deep.equal({ type: "string" })
         })
 
@@ -2257,8 +2275,8 @@ describe("Schema Builder - advanced transformations", function () {
             ).expandEnumToProperties((pa) => pa.meta.state, SB.stringSchema(), { suffix: "At" })
             expect(Object.keys(s.schema.properties!)).to.include.members(["onAt", "offAt"])
             // type-level: the generated keys are inferred from the nested enum
-            const onAt: SchemaBuilder<string> = s.objectProperties.onAt
-            const offAt: SchemaBuilder<string> = s.objectProperties.offAt
+            const onAt: SchemaBuilder<string> = s.objectProperties().onAt
+            const offAt: SchemaBuilder<string> = s.objectProperties().offAt
             expect(onAt.schema).to.deep.equal({ type: "string" })
             expect(offAt.schema).to.deep.equal({ type: "string" })
         })
