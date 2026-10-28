@@ -298,6 +298,40 @@ describe("Schema Builder", function () {
         expect(() => schemaBuilder.validate({ s: { ss: "test" } })).to.not.throw()
     })
 
+    it("should convert optional, nullable and array nested objects to deep optionals", function () {
+        const address = SB.objectSchema({}, { city: SB.stringSchema(), zip: SB.stringSchema() })
+        const schema = SB.objectSchema(
+            {},
+            {
+                id: SB.stringSchema(),
+                address: [address, undefined],
+                billing: address,
+                addresses: SB.arraySchema(address),
+                previousAddresses: [SB.arraySchema(address), undefined],
+            },
+        )
+        const deep = schema.toDeepOptionals()
+        type Deep = typeof deep.T
+        const optionalNested: Deep = { address: { city: "Paris" } }
+        const requiredNested: Deep = { billing: { zip: "75001" } }
+        const arrayNested: Deep = { addresses: [{ city: "Paris" }], previousAddresses: [{ zip: "75001" }] }
+        const explicitUndefined: Deep = { address: undefined, previousAddresses: undefined }
+        // @ts-expect-error nested properties keep their type
+        const wrongNestedType: Deep = { address: { city: 42 } }
+        for (const value of [optionalNested, requiredNested, arrayNested, explicitUndefined]) {
+            expect(() => deep.validate(value)).to.not.throw()
+        }
+        expect(() => deep.validate(wrongNestedType)).to.throw()
+
+        const patch = schema.omitProperties(["id"]).toNullable().toDeepOptionals()
+        type Patch = typeof patch.T
+        const nullableNested: Patch = { address: { city: "Paris" }, previousAddresses: [{ city: "Paris" }] }
+        const nullValues: Patch = { address: null, previousAddresses: null }
+        for (const value of [nullableNested, nullValues]) {
+            expect(() => patch.validate(value)).to.not.throw()
+        }
+    })
+
     it("should add nullable properties", function () {
         let schemaBuilder = SB.emptySchema().addEnum("s", ["a", "b", "c"], {}, false, true).addArray("a", SB.stringSchema(), {}, false, true)
         expect(() => schemaBuilder.validate({ s: null, a: null })).to.not.throw()

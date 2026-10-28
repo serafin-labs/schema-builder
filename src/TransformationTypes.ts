@@ -20,14 +20,21 @@ export type Merge<T, U> = Omit<T, Extract<keyof T, keyof U>> & Omit<U, Extract<k
  * Type modifier that makes all properties optionals deeply
  */
 export type DeepPartial<T> = {
-    [P in keyof T]?: T[P] extends Array<infer U>
-        ? Array<DeepPartial<U>>
-        : T[P] extends ReadonlyArray<infer U>
-          ? ReadonlyArray<DeepPartial<U>>
-          : T[P] extends object
-            ? { [P2 in keyof DeepPartial<T[P]>]: DeepPartial<T[P]>[P2] }
-            : T[P]
+    [P in keyof T]?: DeepPartialValue<T[P]>
 }
+
+/**
+ * Value counterpart of {@link DeepPartial}. `V` is a naked type parameter so the conditional
+ * distributes over unions: an optional or nullable nested object (`X | undefined`, `X | null`)
+ * is made deeply partial while the `undefined` / `null` members are kept as-is.
+ */
+export type DeepPartialValue<V> = V extends Array<infer U>
+    ? Array<DeepPartialValue<U>>
+    : V extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartialValue<U>>
+      : V extends object
+        ? { [P in keyof DeepPartial<V>]: DeepPartial<V>[P] }
+        : V
 
 /**
  * Make all properties of T required.
